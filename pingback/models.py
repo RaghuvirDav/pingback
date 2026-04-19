@@ -13,7 +13,6 @@ class CreateMonitorInput(BaseModel):
     name: str
     url: HttpUrl
     interval_seconds: int = 300
-    user_id: Optional[str] = None
 
 
 class Monitor(BaseModel):
