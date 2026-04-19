@@ -144,7 +144,7 @@ async def signup_submit(request: Request, email: str = Form(...), name: str = Fo
     )
     await db.commit()
 
-    response = _redirect("/dashboard")
+    response = _redirect("/dashboard?welcome=1")
     set_session(response, api_key)
     return response
 
@@ -192,11 +192,14 @@ async def dashboard(request: Request):
             "last_checked": last_checked,
         })
 
+    welcome = request.query_params.get("welcome") == "1" and not monitors
+
     return templates.TemplateResponse("dashboard.html", {
         "request": request,
         "user": user,
         "monitors": monitors,
         "down_count": down_count,
+        "welcome": welcome,
     })
 
 
