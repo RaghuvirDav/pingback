@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Sign Up - Pingback{% endblock %}
+{% block body %}
+{% include "nav.html" %}
+<div class="flex min-h-[calc(100vh-3.5rem)] items-center justify-center px-4">
+  <div class="w-full max-w-sm">
+    <h1 class="text-2xl font-bold text-white text-center mb-2">Create your account</h1>
+    <p class="text-center text-slate-400 text-sm mb-8">Start monitoring in under a minute</p>
+
+    {% if error %}
+    <div class="mb-4 rounded-lg bg-red-500/10 border border-red-500/20 px-4 py-3 text-sm text-red-400">{{ error }}</div>
+    {% endif %}
+
+    <form method="post" action="/signup" class="space-y-4">
+      <div>
+        <label for="email" class="block text-sm font-medium text-slate-300 mb-1">Email</label>
+        <input type="email" id="email" name="email" required value="{{ email or '' }}"
+               class="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white placeholder-slate-500 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+               placeholder="you@example.com">
+      </div>
+      <div>
+        <label for="name" class="block text-sm font-medium text-slate-300 mb-1">Name</label>
+        <input type="text" id="name" name="name" value="{{ name or '' }}"
+               class="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white placeholder-slate-500 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+               placeholder="Jane Doe">
+      </div>
+      <button type="submit"
+              class="w-full rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 focus:ring-offset-slate-950">
+        Create account
+      </button>
+    </form>
+
+    <p class="mt-6 text-center text-sm text-slate-500">
+      Already have an account? <a href="/login" class="text-brand-400 hover:text-brand-300">Log in</a>
+    </p>
+  </div>
+</div>
+{% endblock %}

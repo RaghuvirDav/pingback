@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Status{% if user_id %} &mdash; {{ user_id }}{% endif %}{% endblock %}
+{% block body %}
+<div class="mx-auto max-w-3xl px-4 py-8">
+  <div class="mb-6">
+    <h1 class="text-2xl font-bold text-white">Service Status</h1>
+    <p class="text-sm text-slate-400">Real-time monitoring dashboard</p>
+  </div>
+
+  {% if monitors %}
+  <div class="mb-6 rounded-lg px-4 py-3 text-sm font-medium
+    {% if overall_class == 'operational' %}bg-green-500/10 border border-green-500/20 text-green-400
+    {% elif overall_class == 'partial' %}bg-yellow-500/10 border border-yellow-500/20 text-yellow-400
+    {% else %}bg-red-500/10 border border-red-500/20 text-red-400{% endif %}">
+    {{ overall_label }}
+  </div>
+  {% endif %}
+
+  {% if not monitors %}
+  <div class="rounded-xl border border-slate-800 bg-slate-900/50 py-16 text-center text-sm text-slate-500">
+    No monitors configured.
+  </div>
+  {% endif %}
+
+  <div class="space-y-4">
+    {% for m in monitors %}
+    <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-5">
+      <div class="flex items-center justify-between mb-3">
+        <span class="font-semibold text-white">{{ m.name }}</span>
+        <span class="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold uppercase
+          {{ 'bg-green-500/20 text-green-400' if m.current_status == 'up' else 'bg-red-500/20 text-red-400' if m.current_status == 'down' else 'bg-yellow-500/20 text-yellow-400' if m.current_status == 'error' else 'bg-slate-700 text-slate-400' }}">
+          <span class="h-1.5 w-1.5 rounded-full {{ 'bg-green-400' if m.current_status == 'up' else 'bg-red-400' if m.current_status == 'down' else 'bg-yellow-400' if m.current_status == 'error' else 'bg-slate-500' }}"></span>
+          {{ m.current_status }}
+        </span>
+      </div>
+      <div class="flex items-center gap-6 text-xs text-slate-400 mb-3">
+        <span>Uptime (30d): <strong class="text-slate-300">{{ m.uptime }}%</strong></span>
+        {% if m.last_response_ms is not none %}
+        <span>Response: <strong class="text-slate-300">{{ m.last_response_ms }}ms</strong></span>
+        {% endif %}
+        {% if m.last_checked %}
+        <span>Checked: {{ m.last_checked }}</span>
+        {% endif %}
+      </div>
+      {% if m.response_times %}
+      <div class="flex items-end gap-[2px] h-10">
+        {% for rt in m.response_times %}
+        <div class="flex-1 min-w-[3px] max-w-[10px] rounded-t bg-green-500/80 hover:bg-green-400"
+          style="height:{{ rt.height }}%"
+          title="{{ rt.ms }}ms">
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+
+  <footer class="mt-8 text-center text-xs text-slate-600">Powered by Pingback</footer>
+</div>
+{% endblock %}

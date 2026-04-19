@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block title %}Settings - Pingback{% endblock %}
+{% block body %}
+{% include "nav.html" %}
+<div class="mx-auto max-w-xl px-4 py-8">
+  <h1 class="text-2xl font-bold text-white mb-6">Settings</h1>
+
+  {% if success %}
+  <div class="mb-4 rounded-lg bg-green-500/10 border border-green-500/20 px-4 py-3 text-sm text-green-400">{{ success }}</div>
+  {% endif %}
+  {% if error %}
+  <div class="mb-4 rounded-lg bg-red-500/10 border border-red-500/20 px-4 py-3 text-sm text-red-400">{{ error }}</div>
+  {% endif %}
+
+  <!-- Profile section -->
+  <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-5 mb-6">
+    <h2 class="text-sm font-semibold text-white mb-4">Profile</h2>
+    <dl class="space-y-3 text-sm">
+      <div class="flex justify-between">
+        <dt class="text-slate-400">Email</dt>
+        <dd class="text-white">{{ user.email }}</dd>
+      </div>
+      <div class="flex justify-between">
+        <dt class="text-slate-400">Name</dt>
+        <dd class="text-white">{{ user.name or 'Not set' }}</dd>
+      </div>
+      <div class="flex justify-between">
+        <dt class="text-slate-400">Plan</dt>
+        <dd>
+          <span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium
+            {{ 'bg-brand-500/20 text-brand-400' if user.plan == 'pro' else 'bg-green-500/20 text-green-400' if user.plan == 'business' else 'bg-slate-700 text-slate-300' }}">
+            {{ user.plan|capitalize }}
+          </span>
+        </dd>
+      </div>
+      <div class="flex justify-between">
+        <dt class="text-slate-400">User ID</dt>
+        <dd class="text-slate-500 font-mono text-xs">{{ user.id }}</dd>
+      </div>
+    </dl>
+  </div>
+
+  <!-- API Key section -->
+  <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-5 mb-6">
+    <h2 class="text-sm font-semibold text-white mb-2">API Key</h2>
+    <p class="text-xs text-slate-400 mb-4">Rotate your API key if you suspect it has been compromised. You will be logged out and need to log in with the new key.</p>
+    <form method="post" action="/dashboard/settings/rotate-key"
+          onsubmit="return confirm('This will invalidate your current API key immediately. Continue?')">
+      <button type="submit" class="rounded-lg border border-yellow-500/30 bg-yellow-500/10 px-4 py-2 text-sm text-yellow-400 hover:bg-yellow-500/20">
+        Rotate API key
+      </button>
+    </form>
+  </div>
+
+  <!-- Notification preferences -->
+  <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-5 mb-6">
+    <h2 class="text-sm font-semibold text-white mb-2">Notifications</h2>
+    <p class="text-xs text-slate-400 mb-4">Configure your daily digest email preferences.</p>
+    <form method="post" action="/dashboard/settings/notifications" class="space-y-4">
+      <div class="flex items-center gap-2">
+        <input type="checkbox" id="digest_enabled" name="digest_enabled" value="1"
+               {{ 'checked' if digest_enabled else '' }}
+               class="h-4 w-4 rounded border-slate-600 bg-slate-800 text-brand-600 focus:ring-brand-500">
+        <label for="digest_enabled" class="text-sm text-slate-300">Enable daily digest email</label>
+      </div>
+      <div>
+        <label for="send_hour_utc" class="block text-sm text-slate-300 mb-1">Send time (UTC hour)</label>
+        <select id="send_hour_utc" name="send_hour_utc"
+                class="w-32 rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500">
+          {% for h in range(24) %}
+          <option value="{{ h }}" {{ 'selected' if send_hour_utc == h else '' }}>{{ '%02d:00'|format(h) }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <button type="submit" class="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-500">Save preferences</button>
+    </form>
+  </div>
+
+  <!-- Public status page -->
+  <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-5 mb-6">
+    <h2 class="text-sm font-semibold text-white mb-2">Public status page</h2>
+    <p class="text-xs text-slate-400 mb-3">Share this link with your users to show your public monitors' status.</p>
+    <div class="flex items-center gap-2">
+      <input type="text" readonly value="{{ status_url }}"
+             class="flex-1 rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-300 font-mono"
+             onclick="this.select()">
+      <button onclick="navigator.clipboard.writeText('{{ status_url }}')" class="rounded-lg border border-slate-700 px-3 py-2 text-sm text-slate-400 hover:text-white hover:border-slate-500">
+        Copy
+      </button>
+    </div>
+  </div>
+
+  <!-- Danger zone -->
+  <div class="rounded-xl border border-red-500/20 bg-red-500/5 p-5">
+    <h2 class="text-sm font-semibold text-red-400 mb-2">Danger zone</h2>
+    <p class="text-xs text-slate-400 mb-4">Permanently delete your account and all associated data. This cannot be undone.</p>
+    <form method="post" action="/dashboard/settings/delete-account"
+          onsubmit="return confirm('This will permanently delete your account, all monitors, and all check history. Type your email to confirm.') && prompt('Type your email to confirm:') === '{{ user.email }}'">
+      <button type="submit" class="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm text-red-400 hover:bg-red-500/20">
+        Delete account
+      </button>
+    </form>
+  </div>
+</div>
+{% endblock %}
