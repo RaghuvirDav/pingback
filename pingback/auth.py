@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+from datetime import datetime, timezone
 
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -36,6 +37,12 @@ async def _lookup_user(token: str) -> dict | None:
             row = await cursor.fetchone()
     if row is None:
         return None
+    # Bump last_login_at so abandoned-account cleanup knows the user is active
+    await db.execute(
+        "UPDATE users SET last_login_at = ? WHERE id = ?",
+        (datetime.now(timezone.utc).isoformat(), row["id"]),
+    )
+    await db.commit()
     return {
         "id": row["id"],
         "email": decrypt_value(row["email"]),

@@ -4,9 +4,10 @@ import asyncio
 import logging
 from datetime import datetime, timezone
 
-from pingback.config import RETENTION_DAYS
+from pingback.config import ABANDONED_ACCOUNT_DAYS, RETENTION_DAYS
 from pingback.db.connection import get_database
 from pingback.db.monitors import (
+    archive_abandoned_free_accounts,
     find_active_monitors,
     get_last_check,
     purge_expired_check_results,
@@ -54,17 +55,21 @@ async def _tick() -> None:
 
 
 async def _maybe_purge() -> None:
-    """Run the data-retention purge if at least 24 hours have elapsed since the last run."""
+    """Run the data-retention purge and abandoned-account cleanup once per day."""
     global _last_purge_time
     now = datetime.now(timezone.utc).timestamp()
     if now - _last_purge_time < _PURGE_INTERVAL_SECONDS:
         return
     _last_purge_time = now
+    db = await get_database()
     try:
-        db = await get_database()
         await purge_expired_check_results(db, RETENTION_DAYS)
     except Exception:
         logger.exception("Retention purge error")
+    try:
+        await archive_abandoned_free_accounts(db, ABANDONED_ACCOUNT_DAYS)
+    except Exception:
+        logger.exception("Abandoned-account cleanup error")
 
 
 async def _scheduler_loop() -> None:

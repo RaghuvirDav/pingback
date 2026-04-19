@@ -209,6 +209,63 @@ async def find_monitors_with_last_check(
     return result
 
 
+async def archive_abandoned_free_accounts(db: aiosqlite.Connection, inactivity_days: int) -> int:
+    """Pause monitors and delete check history for free-tier users inactive for inactivity_days.
+
+    A user is considered abandoned when their last_login_at (or created_at if
+    they never logged in) is older than the cutoff.  Returns the number of
+    affected user accounts.
+    """
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=inactivity_days)).isoformat()
+
+    # Find abandoned free-tier users
+    async with db.execute(
+        """SELECT id FROM users
+           WHERE plan = 'free'
+             AND COALESCE(last_login_at, created_at) < ?""",
+        (cutoff,),
+    ) as cursor:
+        rows = await cursor.fetchall()
+
+    if not rows:
+        return 0
+
+    user_ids = [r["id"] for r in rows]
+
+    for uid in user_ids:
+        # Delete check_results for all monitors owned by this user
+        await db.execute(
+            """DELETE FROM check_results
+               WHERE monitor_id IN (SELECT id FROM monitors WHERE user_id = ?)""",
+            (uid,),
+        )
+        # Pause all active monitors
+        await db.execute(
+            """UPDATE monitors SET status = 'paused', updated_at = ?
+               WHERE user_id = ? AND status = 'active'""",
+            (_now_iso(), uid),
+        )
+        # Audit log entry
+        await db.execute(
+            """INSERT INTO audit_log (id, user_id, action, resource_type, detail, timestamp)
+               VALUES (?, ?, 'archive_abandoned', 'account', ?, ?)""",
+            (
+                str(uuid.uuid4()),
+                uid,
+                f"Free-tier account inactive for {inactivity_days}+ days; monitors paused, check history deleted",
+                _now_iso(),
+            ),
+        )
+
+    await db.commit()
+    logger.info(
+        "Archived %d abandoned free-tier account(s) (inactive > %d days)",
+        len(user_ids),
+        inactivity_days,
+    )
+    return len(user_ids)
+
+
 async def purge_expired_check_results(db: aiosqlite.Connection, retention_days: int) -> int:
     """Delete check_results older than retention_days. Returns the number of rows deleted."""
     cutoff = (datetime.now(timezone.utc) - timedelta(days=retention_days)).isoformat()

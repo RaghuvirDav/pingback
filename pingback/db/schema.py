@@ -57,6 +57,22 @@ CREATE INDEX IF NOT EXISTS idx_audit_log_action ON audit_log(action);
 """
 
 
+DIGEST_PREFS_SQL = """
+CREATE TABLE IF NOT EXISTS digest_preferences (
+    user_id TEXT PRIMARY KEY,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    send_hour_utc INTEGER NOT NULL DEFAULT 8,
+    unsubscribe_token TEXT NOT NULL,
+    last_sent_at TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_digest_prefs_enabled ON digest_preferences(enabled);
+CREATE INDEX IF NOT EXISTS idx_digest_prefs_token ON digest_preferences(unsubscribe_token);
+"""
+
+
 MIGRATIONS = [
     # Add is_public column to monitors (idempotent)
     """ALTER TABLE monitors ADD COLUMN is_public INTEGER NOT NULL DEFAULT 0""",
@@ -64,6 +80,8 @@ MIGRATIONS = [
     """ALTER TABLE users ADD COLUMN consent_given_at TEXT""",
     # Add api_key_hash for fast lookup of encrypted API keys
     """ALTER TABLE users ADD COLUMN api_key_hash TEXT""",
+    # Track last login time for abandoned-account detection
+    """ALTER TABLE users ADD COLUMN last_login_at TEXT""",
 ]
 
 
@@ -71,6 +89,7 @@ async def initialize_database(db: aiosqlite.Connection) -> None:
     await db.execute("PRAGMA journal_mode = WAL")
     await db.execute("PRAGMA foreign_keys = ON")
     await db.executescript(SCHEMA_SQL)
+    await db.executescript(DIGEST_PREFS_SQL)
     for migration in MIGRATIONS:
         try:
             await db.execute(migration)
