@@ -12,6 +12,7 @@ from pingback.routes.checks import router as checks_router
 from pingback.routes.health import router as health_router
 from pingback.routes.monitors import router as monitors_router
 from pingback.routes.status import router as status_router
+from pingback.routes.users import router as users_router
 from pingback.services.scheduler import start_scheduler, stop_scheduler
 
 logging.basicConfig(level=logging.INFO)
@@ -34,6 +35,7 @@ app.include_router(health_router)
 app.include_router(monitors_router)
 app.include_router(checks_router)
 app.include_router(status_router)
+app.include_router(users_router)
 
 
 if __name__ == "__main__":

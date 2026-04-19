@@ -46,6 +46,8 @@ CREATE INDEX IF NOT EXISTS idx_check_results_checked_at ON check_results(checked
 MIGRATIONS = [
     # Add is_public column to monitors (idempotent)
     """ALTER TABLE monitors ADD COLUMN is_public INTEGER NOT NULL DEFAULT 0""",
+    # Add consent_given_at column to users for GDPR consent tracking
+    """ALTER TABLE users ADD COLUMN consent_given_at TEXT""",
 ]
 
 
