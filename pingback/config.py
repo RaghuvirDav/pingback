@@ -1,5 +1,11 @@
 import os
+from pathlib import Path
 
+from dotenv import load_dotenv
+
+# Load .env from project root (two levels up from this file).
+_env_file = Path(__file__).resolve().parent.parent / ".env"
+load_dotenv(_env_file)
 
 PORT = int(os.environ.get("PORT", "8000"))
 HOST = os.environ.get("HOST", "0.0.0.0")
@@ -33,3 +39,9 @@ RESEND_FROM_EMAIL = os.environ.get("RESEND_FROM_EMAIL", "Pingback <noreply@pingb
 
 # Base URL for links in emails (unsubscribe, dashboard).
 APP_BASE_URL = os.environ.get("APP_BASE_URL", "http://localhost:8000")
+
+# AWS credentials — loaded from .env or environment.
+# Used for SES, S3, and other AWS services (free tier only).
+AWS_ACCESS_KEY_ID = os.environ.get("AWS_ACCESS_KEY_ID", "")
+AWS_SECRET_ACCESS_KEY = os.environ.get("AWS_SECRET_ACCESS_KEY", "")
+AWS_DEFAULT_REGION = os.environ.get("AWS_DEFAULT_REGION", "us-east-1")

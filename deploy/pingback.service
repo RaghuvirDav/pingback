@@ -1,0 +1,24 @@
+[Unit]
+Description=Pingback Uptime Monitor
+After=network.target
+
+[Service]
+Type=simple
+User=pingback
+Group=pingback
+WorkingDirectory=/opt/pingback
+EnvironmentFile=/opt/pingback/.env
+ExecStart=/opt/pingback/venv/bin/uvicorn pingback.main:app --host 127.0.0.1 --port 8000
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+# Security hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/pingback
+
+[Install]
+WantedBy=multi-user.target
