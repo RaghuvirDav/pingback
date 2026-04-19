@@ -14,6 +14,7 @@ from pingback.db.monitors import (
     save_check_result,
 )
 from pingback.services.checker import check_url
+from pingback.services.email import send_daily_digests
 
 logger = logging.getLogger("pingback.scheduler")
 
@@ -22,6 +23,7 @@ _PURGE_INTERVAL_SECONDS = 86400  # Run retention purge once per day
 
 _task: asyncio.Task | None = None
 _last_purge_time: float = 0
+_last_digest_hour: int = -1
 
 
 async def _tick() -> None:
@@ -72,6 +74,21 @@ async def _maybe_purge() -> None:
         logger.exception("Abandoned-account cleanup error")
 
 
+async def _maybe_send_digests() -> None:
+    """Send daily digest emails when a new UTC hour begins."""
+    global _last_digest_hour
+    current_hour = datetime.now(timezone.utc).hour
+    if current_hour == _last_digest_hour:
+        return
+    _last_digest_hour = current_hour
+    try:
+        sent = await send_daily_digests(current_hour)
+        if sent > 0:
+            logger.info("Sent %d daily digest email(s) for hour %d UTC", sent, current_hour)
+    except Exception:
+        logger.exception("Daily digest send error")
+
+
 async def _scheduler_loop() -> None:
     logger.info("Scheduler started (tick every %ds)", TICK_INTERVAL_SECONDS)
     while True:
@@ -83,6 +100,10 @@ async def _scheduler_loop() -> None:
             await _maybe_purge()
         except Exception:
             logger.exception("Purge tick error")
+        try:
+            await _maybe_send_digests()
+        except Exception:
+            logger.exception("Digest tick error")
         await asyncio.sleep(TICK_INTERVAL_SECONDS)
 
 

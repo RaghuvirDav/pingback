@@ -11,6 +11,7 @@ from pingback.db.connection import close_database, get_database
 from pingback.middleware import AuditLogMiddleware, HTTPSRedirectMiddleware
 from pingback.routes.audit import router as audit_router
 from pingback.routes.checks import router as checks_router
+from pingback.routes.digest import router as digest_router
 from pingback.routes.health import router as health_router
 from pingback.routes.monitors import router as monitors_router
 from pingback.routes.status import router as status_router
@@ -41,6 +42,7 @@ app.include_router(checks_router)
 app.include_router(status_router)
 app.include_router(users_router)
 app.include_router(audit_router)
+app.include_router(digest_router)
 
 
 if __name__ == "__main__":
