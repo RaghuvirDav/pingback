@@ -67,7 +67,7 @@ def _redirect(url: str, status_code: int = 303) -> RedirectResponse:
 @router.get("/", response_class=HTMLResponse)
 async def landing(request: Request):
     user = await _get_ui_user(request)
-    return templates.TemplateResponse("landing.html", {"request": request, "user": user})
+    return templates.TemplateResponse(request, "landing.html", {"user": user})
 
 
 # ---------------------------------------------------------------------------
@@ -79,7 +79,7 @@ async def login_page(request: Request):
     user = await _get_ui_user(request)
     if user:
         return _redirect("/dashboard")
-    return templates.TemplateResponse("login.html", {"request": request, "user": None, "error": None})
+    return templates.TemplateResponse(request, "login.html", {"user": None, "error": None})
 
 
 @router.post("/login", response_class=HTMLResponse)
@@ -87,8 +87,8 @@ async def login_submit(request: Request, api_key: str = Form(...)):
     user = await _lookup_user(api_key)
     if user is None:
         return templates.TemplateResponse(
-            "login.html",
-            {"request": request, "user": None, "error": "Invalid API key. Check your key and try again."},
+            request, "login.html",
+            {"user": None, "error": "Invalid API key. Check your key and try again."},
             status_code=401,
         )
     response = _redirect("/dashboard")
@@ -102,7 +102,7 @@ async def signup_page(request: Request):
     if user:
         return _redirect("/dashboard")
     return templates.TemplateResponse(
-        "signup.html", {"request": request, "user": None, "error": None, "email": "", "name": ""}
+        request, "signup.html", {"user": None, "error": None, "email": "", "name": ""}
     )
 
 
@@ -120,8 +120,8 @@ async def signup_submit(request: Request, email: str = Form(...), name: str = Fo
     async with db.execute("SELECT id FROM users WHERE email = ?", (encrypted_email,)) as cur:
         if await cur.fetchone():
             return templates.TemplateResponse(
-                "signup.html",
-                {"request": request, "user": None, "error": "An account with that email already exists.", "email": email, "name": name},
+                request, "signup.html",
+                {"user": None, "error": "An account with that email already exists.", "email": email, "name": name},
                 status_code=409,
             )
 
@@ -194,8 +194,7 @@ async def dashboard(request: Request):
 
     welcome = request.query_params.get("welcome") == "1" and not monitors
 
-    return templates.TemplateResponse("dashboard.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "dashboard.html", {
         "user": user,
         "monitors": monitors,
         "down_count": down_count,
@@ -212,8 +211,8 @@ async def new_monitor_page(request: Request):
     user = await _get_ui_user(request)
     if user is None:
         return _redirect("/login")
-    return templates.TemplateResponse("monitor_form.html", {
-        "request": request, "user": user, "monitor": None, "error": None, "name": "", "url": "",
+    return templates.TemplateResponse(request, "monitor_form.html", {
+        "user": user, "monitor": None, "error": None, "name": "", "url": "",
     })
 
 
@@ -233,8 +232,8 @@ async def new_monitor_submit(
     current_count = await count_user_monitors(db, user["id"])
     limit = _PLAN_LIMITS.get(user.get("plan", "free"), MAX_MONITORS_FREE)
     if current_count >= limit:
-        return templates.TemplateResponse("monitor_form.html", {
-            "request": request, "user": user, "monitor": None,
+        return templates.TemplateResponse(request, "monitor_form.html", {
+            "user": user, "monitor": None,
             "error": f"You've reached your plan limit of {limit} monitors. Upgrade to add more.",
             "name": name, "url": url,
         }, status_code=403)
@@ -252,8 +251,8 @@ async def edit_monitor_page(request: Request, monitor_id: str):
     monitor = await find_monitor_by_id(db, monitor_id)
     if monitor is None or monitor.user_id != user["id"]:
         raise HTTPException(status_code=404, detail="Monitor not found")
-    return templates.TemplateResponse("monitor_form.html", {
-        "request": request, "user": user, "monitor": monitor, "error": None,
+    return templates.TemplateResponse(request, "monitor_form.html", {
+        "user": user, "monitor": monitor, "error": None,
     })
 
 
@@ -328,8 +327,7 @@ async def monitor_detail(request: Request, monitor_id: str):
             for r in rts_raw
         ]
 
-    return templates.TemplateResponse("monitor_detail.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "monitor_detail.html", {
         "user": user,
         "monitor": monitor,
         "uptime": uptime,
@@ -364,8 +362,7 @@ async def settings_page(request: Request):
 
     status_url = f"{APP_BASE_URL}/status/{user['id']}"
 
-    return templates.TemplateResponse("settings.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "settings.html", {
         "user": user,
         "digest_enabled": digest_enabled,
         "send_hour_utc": send_hour_utc,
@@ -486,8 +483,7 @@ async def public_status_page(request: Request, user_id: str):
             overall_class, overall_label = "partial", "Partial outage"
 
     session_user = await _get_ui_user(request)
-    return templates.TemplateResponse("status.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "status.html", {
         "user": session_user,
         "user_id": user_id,
         "monitors": view_monitors,

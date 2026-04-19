@@ -45,8 +45,7 @@ async def billing_page(request: Request):
         except stripe.StripeError:
             pass
 
-    return templates.TemplateResponse("billing.html", {
-        "request": request,
+    return templates.TemplateResponse(request, "billing.html", {
         "user": user,
         "subscription": subscription,
         "success": request.query_params.get("success"),

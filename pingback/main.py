@@ -54,14 +54,14 @@ _templates = Jinja2Templates(
 @app.exception_handler(404)
 async def not_found_handler(request: Request, exc: StarletteHTTPException):
     return _templates.TemplateResponse(
-        "404.html", {"request": request}, status_code=404
+        request, "404.html", status_code=404
     )
 
 
 @app.exception_handler(500)
 async def server_error_handler(request: Request, exc: Exception):
     return _templates.TemplateResponse(
-        "500.html", {"request": request}, status_code=500
+        request, "500.html", status_code=500
     )
 
 
