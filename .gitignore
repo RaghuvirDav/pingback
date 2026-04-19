@@ -1,5 +1,11 @@
-node_modules/
-dist/
+__pycache__/
+*.pyc
+*.pyo
 *.db
 *.db-journal
+*.db-wal
 .env
+.venv/
+venv/
+dist/
+*.egg-info/
