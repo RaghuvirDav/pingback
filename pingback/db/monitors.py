@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Optional
@@ -7,6 +8,8 @@ from typing import Optional
 import aiosqlite
 
 from pingback.models import CheckResult, CheckStatus, Monitor, MonitorWithLastCheck
+
+logger = logging.getLogger("pingback.db.monitors")
 
 
 def _now_iso() -> str:
@@ -204,3 +207,17 @@ async def find_monitors_with_last_check(
         last_check = await get_last_check(db, m.id)
         result.append(MonitorWithLastCheck(**m.model_dump(), last_check=last_check))
     return result
+
+
+async def purge_expired_check_results(db: aiosqlite.Connection, retention_days: int) -> int:
+    """Delete check_results older than retention_days. Returns the number of rows deleted."""
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=retention_days)).isoformat()
+    cursor = await db.execute(
+        "DELETE FROM check_results WHERE checked_at < ?",
+        (cutoff,),
+    )
+    await db.commit()
+    deleted = cursor.rowcount
+    if deleted > 0:
+        logger.info("Purged %d check_results older than %d days", deleted, retention_days)
+    return deleted

@@ -5,8 +5,9 @@ from datetime import datetime, timezone
 
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.requests import Request
-from starlette.responses import Response
+from starlette.responses import RedirectResponse, Response
 
+from pingback.config import APP_ENV
 from pingback.db.connection import get_database
 
 # Routes that don't need audit logging (health checks, static assets)
@@ -80,3 +81,18 @@ class AuditLogMiddleware(BaseHTTPMiddleware):
             pass  # Don't let audit failures break the app
 
         return response
+
+
+class HTTPSRedirectMiddleware(BaseHTTPMiddleware):
+    """Redirect HTTP requests to HTTPS when APP_ENV is 'production'."""
+
+    async def dispatch(
+        self, request: Request, call_next: RequestResponseEndpoint
+    ) -> Response:
+        if APP_ENV == "production":
+            # Check the scheme — also honour X-Forwarded-Proto from reverse proxies
+            proto = request.headers.get("x-forwarded-proto", request.url.scheme)
+            if proto == "http":
+                url = request.url.replace(scheme="https")
+                return RedirectResponse(url=str(url), status_code=301)
+        return await call_next(request)

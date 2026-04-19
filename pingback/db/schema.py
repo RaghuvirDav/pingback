@@ -62,6 +62,8 @@ MIGRATIONS = [
     """ALTER TABLE monitors ADD COLUMN is_public INTEGER NOT NULL DEFAULT 0""",
     # Add consent_given_at column to users for GDPR consent tracking
     """ALTER TABLE users ADD COLUMN consent_given_at TEXT""",
+    # Add api_key_hash for fast lookup of encrypted API keys
+    """ALTER TABLE users ADD COLUMN api_key_hash TEXT""",
 ]
 
 

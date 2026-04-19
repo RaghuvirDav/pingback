@@ -9,3 +9,13 @@ CHECK_TIMEOUT_SECONDS = 30
 MAX_MONITORS_FREE = 3
 MAX_MONITORS_PRO = 50
 MAX_MONITORS_BUSINESS = 200
+
+# Encryption key for sensitive fields (Fernet symmetric encryption).
+# Generate with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+ENCRYPTION_KEY = os.environ.get("ENCRYPTION_KEY", "")
+
+# Data retention: number of days to keep check_results before purging.
+RETENTION_DAYS = int(os.environ.get("RETENTION_DAYS", "90"))
+
+# Set to "production" to enforce HTTPS redirection.
+APP_ENV = os.environ.get("APP_ENV", "development")

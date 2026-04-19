@@ -8,7 +8,7 @@ from fastapi import FastAPI
 
 from pingback.config import HOST, PORT
 from pingback.db.connection import close_database, get_database
-from pingback.middleware import AuditLogMiddleware
+from pingback.middleware import AuditLogMiddleware, HTTPSRedirectMiddleware
 from pingback.routes.audit import router as audit_router
 from pingback.routes.checks import router as checks_router
 from pingback.routes.health import router as health_router
@@ -34,6 +34,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Pingback", version="0.1.0", lifespan=lifespan)
 app.add_middleware(AuditLogMiddleware)
+app.add_middleware(HTTPSRedirectMiddleware)
 app.include_router(health_router)
 app.include_router(monitors_router)
 app.include_router(checks_router)

@@ -5,8 +5,9 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from pingback.auth import get_current_user
+from pingback.auth import get_current_user, hash_api_key
 from pingback.db.connection import get_database
+from pingback.encryption import decrypt_value, encrypt_value
 from pingback.rate_limit import require_rate_limit
 
 router = APIRouter(prefix="/api")
@@ -49,7 +50,7 @@ async def export_user_data(
 
     user_data = {
         "id": user_row["id"],
-        "email": user_row["email"],
+        "email": decrypt_value(user_row["email"]),
         "name": user_row["name"],
         "plan": user_row["plan"],
         "created_at": user_row["created_at"],
@@ -134,8 +135,8 @@ async def rotate_api_key(
     new_key = secrets.token_urlsafe(32)
     now = datetime.now(timezone.utc).isoformat()
     cursor = await db.execute(
-        "UPDATE users SET api_key = ?, updated_at = ? WHERE id = ?",
-        (new_key, now, user_id),
+        "UPDATE users SET api_key = ?, api_key_hash = ?, updated_at = ? WHERE id = ?",
+        (encrypt_value(new_key), hash_api_key(new_key), now, user_id),
     )
     await db.commit()
     if cursor.rowcount == 0:
