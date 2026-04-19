@@ -1,0 +1,12 @@
+# AWS deployment overlay — use with: docker compose -f docker-compose.yml -f docker-compose.aws.yml up -d
+services:
+  pingback:
+    environment:
+      - APP_ENV=production
+    restart: always
+    logging:
+      driver: awslogs
+      options:
+        awslogs-region: us-east-1
+        awslogs-group: pingback
+        awslogs-stream-prefix: app
