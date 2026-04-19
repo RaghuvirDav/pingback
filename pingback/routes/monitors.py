@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from pingback.auth import get_current_user, get_optional_user
 from pingback.db.connection import get_database
+from pingback.rate_limit import require_rate_limit
 from pingback.db.monitors import (
     create_monitor,
     delete_monitor,
@@ -15,7 +16,7 @@ from pingback.models import CreateMonitorInput, Monitor, MonitorWithLastCheck, P
 router = APIRouter(prefix="/api")
 
 
-@router.post("/monitors", status_code=201, response_model=Monitor)
+@router.post("/monitors", status_code=201, response_model=Monitor, dependencies=[Depends(require_rate_limit)])
 async def create_monitor_route(
     body: CreateMonitorInput,
     current_user: dict = Depends(get_current_user),

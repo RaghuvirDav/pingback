@@ -36,10 +36,24 @@ CREATE TABLE IF NOT EXISTS check_results (
     FOREIGN KEY (monitor_id) REFERENCES monitors(id) ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS audit_log (
+    id TEXT PRIMARY KEY,
+    user_id TEXT,
+    action TEXT NOT NULL,
+    resource_type TEXT,
+    resource_id TEXT,
+    ip_address TEXT,
+    detail TEXT,
+    timestamp TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE INDEX IF NOT EXISTS idx_monitors_user_id ON monitors(user_id);
 CREATE INDEX IF NOT EXISTS idx_monitors_status ON monitors(status);
 CREATE INDEX IF NOT EXISTS idx_check_results_monitor_id ON check_results(monitor_id);
 CREATE INDEX IF NOT EXISTS idx_check_results_checked_at ON check_results(checked_at);
+CREATE INDEX IF NOT EXISTS idx_audit_log_user_id ON audit_log(user_id);
+CREATE INDEX IF NOT EXISTS idx_audit_log_timestamp ON audit_log(timestamp);
+CREATE INDEX IF NOT EXISTS idx_audit_log_action ON audit_log(action);
 """
 
 

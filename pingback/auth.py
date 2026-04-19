@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from pingback.db.connection import get_database
@@ -10,6 +10,7 @@ _bearer_scheme_optional = HTTPBearer(auto_error=False)
 
 
 async def get_current_user(
+    request: Request,
     credentials: HTTPAuthorizationCredentials = Depends(_bearer_scheme),
 ) -> dict:
     """Validate a Bearer token against the users.api_key column.
@@ -30,7 +31,9 @@ async def get_current_user(
             detail="Invalid or missing API key",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    return {"id": row["id"], "email": row["email"], "name": row["name"], "plan": row["plan"]}
+    user = {"id": row["id"], "email": row["email"], "name": row["name"], "plan": row["plan"]}
+    request.state.audit_user_id = user["id"]
+    return user
 
 
 async def get_optional_user(

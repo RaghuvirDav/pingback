@@ -1,16 +1,18 @@
 from __future__ import annotations
 
+import secrets
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 
 from pingback.auth import get_current_user
 from pingback.db.connection import get_database
+from pingback.rate_limit import require_rate_limit
 
 router = APIRouter(prefix="/api")
 
 
-@router.delete("/users/{user_id}", status_code=204)
+@router.delete("/users/{user_id}", status_code=204, dependencies=[Depends(require_rate_limit)])
 async def delete_user(
     user_id: str,
     current_user: dict = Depends(get_current_user),
@@ -118,3 +120,24 @@ async def record_consent(
     if cursor.rowcount == 0:
         raise HTTPException(status_code=404, detail="User not found")
     return {"consent_given_at": now}
+
+
+@router.post("/users/{user_id}/rotate-key", status_code=200, dependencies=[Depends(require_rate_limit)])
+async def rotate_api_key(
+    user_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """Rotate the user's API key. The old key is invalidated immediately."""
+    if current_user["id"] != user_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+    db = await get_database()
+    new_key = secrets.token_urlsafe(32)
+    now = datetime.now(timezone.utc).isoformat()
+    cursor = await db.execute(
+        "UPDATE users SET api_key = ?, updated_at = ? WHERE id = ?",
+        (new_key, now, user_id),
+    )
+    await db.commit()
+    if cursor.rowcount == 0:
+        raise HTTPException(status_code=404, detail="User not found")
+    return {"api_key": new_key}
