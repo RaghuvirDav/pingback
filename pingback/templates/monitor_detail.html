@@ -2,70 +2,77 @@
 {% block title %}{{ monitor.name }} - Pingback{% endblock %}
 {% block body %}
 {% include "nav.html" %}
-<div class="mx-auto max-w-5xl px-4 py-8">
+<div class="mx-auto max-w-6xl px-6 py-10 animate-fade-in">
   <!-- Breadcrumb -->
-  <div class="mb-6 flex items-center justify-between">
-    <a href="/dashboard" class="text-sm text-slate-400 hover:text-slate-300">&larr; Back to dashboard</a>
-    <a href="/dashboard/monitors/{{ monitor.id }}/edit" class="text-sm text-brand-400 hover:text-brand-300">Edit</a>
+  <div class="mb-8 flex items-center justify-between">
+    <div class="flex items-center gap-2 text-sm">
+      <a href="/dashboard" class="text-surface-500 hover:text-surface-300 transition-colors">Dashboard</a>
+      <svg class="h-3.5 w-3.5 text-surface-700" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>
+      <span class="text-surface-300">{{ monitor.name }}</span>
+    </div>
+    <a href="/dashboard/monitors/{{ monitor.id }}/edit" class="inline-flex items-center gap-1.5 rounded-lg border border-surface-700 bg-surface-800/60 px-3 py-1.5 text-sm text-surface-400 hover:text-white hover:border-surface-600 transition-all">
+      <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487z"/></svg>
+      Edit
+    </a>
   </div>
 
   <!-- Header -->
-  <div class="flex items-center gap-3 mb-6">
-    <span class="relative flex h-4 w-4 shrink-0">
+  <div class="flex items-center gap-4 mb-8">
+    <span class="relative flex h-5 w-5 shrink-0">
       {% if current_status == 'up' %}
-      <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-      <span class="relative inline-flex rounded-full h-4 w-4 bg-green-500"></span>
+      <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-400 opacity-60"></span>
+      <span class="relative inline-flex rounded-full h-5 w-5 bg-brand-500"></span>
       {% elif current_status == 'down' %}
-      <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-      <span class="relative inline-flex rounded-full h-4 w-4 bg-red-500"></span>
+      <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-60"></span>
+      <span class="relative inline-flex rounded-full h-5 w-5 bg-red-500"></span>
       {% elif current_status == 'error' %}
-      <span class="relative inline-flex rounded-full h-4 w-4 bg-yellow-500"></span>
+      <span class="relative inline-flex rounded-full h-5 w-5 bg-yellow-500"></span>
       {% else %}
-      <span class="relative inline-flex rounded-full h-4 w-4 bg-slate-600"></span>
+      <span class="relative inline-flex rounded-full h-5 w-5 bg-surface-600"></span>
       {% endif %}
     </span>
     <div>
-      <h1 class="text-2xl font-bold text-white">{{ monitor.name }}</h1>
-      <p class="text-sm text-slate-400">{{ monitor.url }}</p>
+      <h1 class="text-2xl font-bold text-white tracking-tight">{{ monitor.name }}</h1>
+      <p class="text-sm text-surface-500 mt-0.5">{{ monitor.url }}</p>
     </div>
   </div>
 
   <!-- Stats cards -->
-  <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
-    <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-4">
-      <div class="text-xs text-slate-500 mb-1">Status</div>
-      <div class="text-lg font-bold {{ 'text-green-400' if current_status == 'up' else 'text-red-400' if current_status == 'down' else 'text-yellow-400' if current_status == 'error' else 'text-slate-400' }}">
+  <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
+    <div class="rounded-2xl border border-surface-800/60 bg-surface-900/40 p-5">
+      <div class="text-xs text-surface-500 mb-2 uppercase tracking-wider font-medium">Status</div>
+      <div class="text-xl font-bold {{ 'text-brand-400' if current_status == 'up' else 'text-red-400' if current_status == 'down' else 'text-yellow-400' if current_status == 'error' else 'text-surface-400' }}">
         {{ current_status|upper }}
       </div>
     </div>
-    <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-4">
-      <div class="text-xs text-slate-500 mb-1">Uptime (30d)</div>
-      <div class="text-lg font-bold {{ 'text-green-400' if uptime >= 99 else 'text-yellow-400' if uptime >= 95 else 'text-red-400' }}">{{ uptime }}%</div>
+    <div class="rounded-2xl border border-surface-800/60 bg-surface-900/40 p-5">
+      <div class="text-xs text-surface-500 mb-2 uppercase tracking-wider font-medium">Uptime (30d)</div>
+      <div class="text-xl font-bold {{ 'text-brand-400' if uptime >= 99 else 'text-yellow-400' if uptime >= 95 else 'text-red-400' }}">{{ uptime }}%</div>
     </div>
-    <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-4">
-      <div class="text-xs text-slate-500 mb-1">Last response</div>
-      <div class="text-lg font-bold text-slate-300">{{ last_response_ms if last_response_ms is not none else '---' }}{{ 'ms' if last_response_ms is not none else '' }}</div>
+    <div class="rounded-2xl border border-surface-800/60 bg-surface-900/40 p-5">
+      <div class="text-xs text-surface-500 mb-2 uppercase tracking-wider font-medium">Last Response</div>
+      <div class="text-xl font-bold text-surface-200">{{ last_response_ms if last_response_ms is not none else '---' }}<span class="text-sm text-surface-600 font-normal">{{ 'ms' if last_response_ms is not none else '' }}</span></div>
     </div>
-    <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-4">
-      <div class="text-xs text-slate-500 mb-1">Check interval</div>
-      <div class="text-lg font-bold text-slate-300">{{ monitor.interval_seconds // 60 }}m</div>
+    <div class="rounded-2xl border border-surface-800/60 bg-surface-900/40 p-5">
+      <div class="text-xs text-surface-500 mb-2 uppercase tracking-wider font-medium">Interval</div>
+      <div class="text-xl font-bold text-surface-200">{{ monitor.interval_seconds // 60 }}<span class="text-sm text-surface-600 font-normal ml-0.5">min</span></div>
     </div>
   </div>
 
   <!-- Response time chart -->
   {% if response_times %}
-  <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-5 mb-8">
-    <h2 class="text-sm font-medium text-slate-300 mb-3">Response time (last {{ response_times|length }} checks)</h2>
-    <div class="flex items-end gap-[2px] h-32">
+  <div class="rounded-2xl border border-surface-800/60 bg-surface-900/40 p-6 mb-8">
+    <h2 class="text-sm font-medium text-surface-300 mb-4">Response time &mdash; last {{ response_times|length }} checks</h2>
+    <div class="flex items-end gap-[2px] h-40">
       {% for rt in response_times %}
-      <div class="flex-1 min-w-[3px] max-w-[10px] rounded-t transition-all
-        {% if rt.ms < 200 %}bg-green-500{% elif rt.ms < 500 %}bg-yellow-500{% else %}bg-red-500{% endif %}"
+      <div class="flex-1 min-w-[3px] max-w-[12px] rounded-t-sm transition-all hover:opacity-80 cursor-default
+        {% if rt.ms < 200 %}bg-brand-500/80 hover:bg-brand-400{% elif rt.ms < 500 %}bg-yellow-500/80 hover:bg-yellow-400{% else %}bg-red-500/80 hover:bg-red-400{% endif %}"
         style="height:{{ rt.height }}%"
         title="{{ rt.ms }}ms &mdash; {{ rt.checked_at }}">
       </div>
       {% endfor %}
     </div>
-    <div class="flex justify-between text-xs text-slate-600 mt-1">
+    <div class="flex justify-between text-[10px] text-surface-600 mt-2 uppercase tracking-wider">
       <span>{{ response_times[0].checked_at[:16] if response_times else '' }}</span>
       <span>{{ response_times[-1].checked_at[:16] if response_times else '' }}</span>
     </div>
@@ -73,42 +80,42 @@
   {% endif %}
 
   <!-- Recent checks table -->
-  <div class="rounded-xl border border-slate-800 bg-slate-900/50 overflow-hidden">
-    <div class="px-5 py-3 border-b border-slate-800">
-      <h2 class="text-sm font-medium text-slate-300">Recent checks</h2>
+  <div class="rounded-2xl border border-surface-800/60 bg-surface-900/40 overflow-hidden">
+    <div class="px-6 py-4 border-b border-surface-800/60">
+      <h2 class="text-sm font-medium text-surface-300">Recent checks</h2>
     </div>
     {% if checks %}
     <div class="overflow-x-auto">
       <table class="w-full text-sm">
         <thead>
-          <tr class="border-b border-slate-800 text-xs text-slate-500 uppercase">
-            <th class="px-5 py-2 text-left font-medium">Status</th>
-            <th class="px-5 py-2 text-left font-medium">Code</th>
-            <th class="px-5 py-2 text-left font-medium">Response</th>
-            <th class="px-5 py-2 text-left font-medium">Time</th>
-            <th class="px-5 py-2 text-left font-medium">Error</th>
+          <tr class="border-b border-surface-800/40 text-[10px] text-surface-500 uppercase tracking-wider">
+            <th class="px-6 py-3 text-left font-medium">Status</th>
+            <th class="px-6 py-3 text-left font-medium">Code</th>
+            <th class="px-6 py-3 text-left font-medium">Response</th>
+            <th class="px-6 py-3 text-left font-medium">Time</th>
+            <th class="px-6 py-3 text-left font-medium">Error</th>
           </tr>
         </thead>
-        <tbody class="divide-y divide-slate-800/50">
+        <tbody class="divide-y divide-surface-800/30">
           {% for c in checks %}
-          <tr class="hover:bg-slate-800/30">
-            <td class="px-5 py-2.5">
-              <span class="inline-flex items-center gap-1.5">
-                <span class="h-2 w-2 rounded-full {{ 'bg-green-500' if c.status == 'up' else 'bg-red-500' if c.status == 'down' else 'bg-yellow-500' }}"></span>
-                <span class="{{ 'text-green-400' if c.status == 'up' else 'text-red-400' if c.status == 'down' else 'text-yellow-400' }}">{{ c.status }}</span>
+          <tr class="hover:bg-surface-800/20 transition-colors">
+            <td class="px-6 py-3">
+              <span class="inline-flex items-center gap-2">
+                <span class="h-2 w-2 rounded-full {{ 'bg-brand-500' if c.status == 'up' else 'bg-red-500' if c.status == 'down' else 'bg-yellow-500' }}"></span>
+                <span class="font-medium {{ 'text-brand-400' if c.status == 'up' else 'text-red-400' if c.status == 'down' else 'text-yellow-400' }}">{{ c.status }}</span>
               </span>
             </td>
-            <td class="px-5 py-2.5 text-slate-400">{{ c.status_code or '---' }}</td>
-            <td class="px-5 py-2.5 text-slate-400">{{ c.response_time_ms ~ 'ms' if c.response_time_ms is not none else '---' }}</td>
-            <td class="px-5 py-2.5 text-slate-500">{{ c.checked_at }}</td>
-            <td class="px-5 py-2.5 text-red-400 text-xs max-w-xs truncate">{{ c.error or '' }}</td>
+            <td class="px-6 py-3 text-surface-400 font-mono text-xs">{{ c.status_code or '---' }}</td>
+            <td class="px-6 py-3 text-surface-400">{{ c.response_time_ms ~ 'ms' if c.response_time_ms is not none else '---' }}</td>
+            <td class="px-6 py-3 text-surface-600 text-xs">{{ c.checked_at }}</td>
+            <td class="px-6 py-3 text-red-400/80 text-xs max-w-xs truncate">{{ c.error or '' }}</td>
           </tr>
           {% endfor %}
         </tbody>
       </table>
     </div>
     {% else %}
-    <div class="px-5 py-8 text-center text-sm text-slate-500">No checks recorded yet.</div>
+    <div class="px-6 py-12 text-center text-sm text-surface-600">No checks recorded yet.</div>
     {% endif %}
   </div>
 </div>

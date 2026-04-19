@@ -2,30 +2,35 @@
 {% block title %}Login - Pingback{% endblock %}
 {% block body %}
 {% include "nav.html" %}
-<div class="flex min-h-[calc(100vh-3.5rem)] items-center justify-center px-4">
-  <div class="w-full max-w-sm">
-    <h1 class="text-2xl font-bold text-white text-center mb-2">Welcome back</h1>
-    <p class="text-center text-slate-400 text-sm mb-8">Enter your API key to access your dashboard</p>
+<div class="flex min-h-[calc(100vh-4rem)] items-center justify-center px-6">
+  <div class="w-full max-w-sm animate-fade-in">
+    <div class="text-center mb-10">
+      <div class="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-500/10 border border-brand-500/20">
+        <svg class="h-6 w-6 text-brand-400" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 5.25a3 3 0 013 3m3 0a6 6 0 01-7.029 5.912c-.563-.097-1.159.026-1.563.43L10.5 17.25H8.25v2.25H6v2.25H2.25v-2.818c0-.597.237-1.17.659-1.591l6.499-6.499c.404-.404.527-1 .43-1.563A6 6 0 1121.75 8.25z"/></svg>
+      </div>
+      <h1 class="text-2xl font-bold text-white">Welcome back</h1>
+      <p class="text-surface-400 text-sm mt-2">Enter your API key to continue</p>
+    </div>
 
     {% if error %}
-    <div class="mb-4 rounded-lg bg-red-500/10 border border-red-500/20 px-4 py-3 text-sm text-red-400">{{ error }}</div>
+    <div class="mb-6 rounded-xl bg-red-500/10 border border-red-500/15 px-4 py-3 text-sm text-red-400 animate-slide-up">{{ error }}</div>
     {% endif %}
 
-    <form method="post" action="/login" class="space-y-4">
+    <form method="post" action="/login" class="space-y-5">
       <div>
-        <label for="api_key" class="block text-sm font-medium text-slate-300 mb-1">API Key</label>
+        <label for="api_key" class="block text-sm font-medium text-surface-300 mb-2">API Key</label>
         <input type="password" id="api_key" name="api_key" required
-               class="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white placeholder-slate-500 focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500"
+               class="w-full rounded-xl border border-surface-700 bg-surface-900 px-4 py-2.5 text-sm text-white placeholder-surface-500 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 transition-all"
                placeholder="pb_...">
       </div>
       <button type="submit"
-              class="w-full rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 focus:ring-offset-slate-950">
+              class="w-full rounded-xl bg-brand-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:ring-offset-2 focus:ring-offset-surface-950 transition-all shadow-lg shadow-brand-600/20">
         Sign in
       </button>
     </form>
 
-    <p class="mt-6 text-center text-sm text-slate-500">
-      Don't have an account? <a href="/signup" class="text-brand-400 hover:text-brand-300">Sign up</a>
+    <p class="mt-8 text-center text-sm text-surface-500">
+      Don't have an account? <a href="/signup" class="text-brand-400 hover:text-brand-300 font-medium transition-colors">Sign up</a>
     </p>
   </div>
 </div>

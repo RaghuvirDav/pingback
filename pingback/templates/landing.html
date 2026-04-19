@@ -1,78 +1,138 @@
 {% extends "base.html" %}
 {% block title %}Pingback - Uptime Monitoring Made Simple{% endblock %}
+{% block head %}
+<style>
+  .hero-grid { background-image: linear-gradient(rgba(16,185,129,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(16,185,129,0.03) 1px, transparent 1px); background-size: 64px 64px; }
+  .hero-glow { background: radial-gradient(ellipse 600px 400px at 50% 0%, rgba(16,185,129,0.08), transparent); }
+  @keyframes float { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+  .float { animation: float 6s ease-in-out infinite; }
+  .float-delay { animation: float 6s ease-in-out 2s infinite; }
+</style>
+{% endblock %}
 {% block body %}
 {% include "nav.html" %}
 
 <!-- Hero -->
 <section class="relative overflow-hidden">
-  <div class="absolute inset-0 bg-gradient-to-b from-brand-600/10 to-transparent"></div>
-  <div class="relative mx-auto max-w-5xl px-4 pt-24 pb-16 text-center">
-    <h1 class="text-4xl sm:text-5xl font-extrabold tracking-tight text-white mb-4">
-      Know when your site goes down.<br class="hidden sm:block"> Before your users do.
-    </h1>
-    <p class="mx-auto max-w-2xl text-lg text-slate-400 mb-8">
-      Pingback monitors your websites and APIs every few minutes and alerts you instantly when something breaks. Simple setup, beautiful status pages, zero ops.
-    </p>
-    <div class="flex items-center justify-center gap-3">
-      <a href="/signup" class="rounded-lg bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-500 shadow-lg shadow-brand-600/25">Start free monitoring</a>
-      <a href="#features" class="rounded-lg border border-slate-700 px-5 py-2.5 text-sm font-semibold text-slate-300 hover:border-slate-500 hover:text-white">See features</a>
+  <div class="absolute inset-0 hero-grid"></div>
+  <div class="absolute inset-0 hero-glow"></div>
+  <div class="relative mx-auto max-w-6xl px-6 pt-28 pb-24 text-center">
+    <div class="animate-fade-in">
+      <div class="inline-flex items-center gap-2 rounded-full border border-brand-500/20 bg-brand-500/5 px-4 py-1.5 text-xs font-medium text-brand-400 mb-8">
+        <span class="relative flex h-2 w-2">
+          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-400 opacity-75"></span>
+          <span class="relative inline-flex rounded-full h-2 w-2 bg-brand-500"></span>
+        </span>
+        Monitoring made effortless
+      </div>
+      <h1 class="text-5xl sm:text-6xl lg:text-7xl font-black tracking-tight text-white leading-[1.05]">
+        Know when it's<br>
+        <span class="text-transparent bg-clip-text bg-gradient-to-r from-brand-400 to-emerald-300">down before</span> they do
+      </h1>
+      <p class="mx-auto max-w-xl text-lg text-surface-400 mt-6 leading-relaxed">
+        Monitor your websites and APIs with instant alerts, response time tracking, and beautiful status pages. Set up in seconds.
+      </p>
+      <div class="flex items-center justify-center gap-4 mt-10">
+        <a href="/signup" class="group rounded-xl bg-brand-600 px-6 py-3 text-sm font-semibold text-white hover:bg-brand-500 transition-all shadow-lg shadow-brand-600/20 hover:shadow-brand-500/30 hover:-translate-y-0.5">
+          Start free monitoring
+          <span class="inline-block transition-transform group-hover:translate-x-0.5 ml-1">&rarr;</span>
+        </a>
+        <a href="#features" class="rounded-xl border border-surface-700 px-6 py-3 text-sm font-semibold text-surface-300 hover:border-surface-500 hover:text-white transition-all hover:-translate-y-0.5">See features</a>
+      </div>
+    </div>
+
+    <!-- Floating stats -->
+    <div class="mt-20 grid grid-cols-3 gap-4 max-w-lg mx-auto animate-slide-up">
+      <div class="float rounded-xl border border-surface-800 bg-surface-900/80 backdrop-blur px-4 py-3">
+        <div class="text-2xl font-bold text-brand-400">99.9%</div>
+        <div class="text-xs text-surface-500 mt-0.5">Avg uptime</div>
+      </div>
+      <div class="float-delay rounded-xl border border-surface-800 bg-surface-900/80 backdrop-blur px-4 py-3">
+        <div class="text-2xl font-bold text-white">&lt; 1s</div>
+        <div class="text-xs text-surface-500 mt-0.5">Alert speed</div>
+      </div>
+      <div class="float rounded-xl border border-surface-800 bg-surface-900/80 backdrop-blur px-4 py-3">
+        <div class="text-2xl font-bold text-white">24/7</div>
+        <div class="text-xs text-surface-500 mt-0.5">Monitoring</div>
+      </div>
     </div>
   </div>
 </section>
 
 <!-- Features -->
-<section id="features" class="mx-auto max-w-5xl px-4 py-20">
-  <h2 class="text-2xl font-bold text-center text-white mb-12">Everything you need for uptime peace of mind</h2>
-  <div class="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
+<section id="features" class="mx-auto max-w-6xl px-6 py-24">
+  <div class="text-center mb-16">
+    <h2 class="text-3xl font-bold text-white">Everything you need</h2>
+    <p class="text-surface-400 mt-3 max-w-md mx-auto">Built for developers and teams who care about reliability.</p>
+  </div>
+  <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
     {% for f in [
-      ("Instant alerts", "Get notified via email the moment your service goes down. No more finding out from angry customers.", "M12 9v3.75m-9.303 1.991c.322.91.22 1.918-.12 2.77-.34.852-.682 1.68-1.015 2.49l-.028.069c-.353.864-.612 1.752-.612 2.68 0 2.07 1.68 3.75 3.75 3.75h.75c1.12 0 2.093-.508 2.75-1.25m0 0c.657-.742 1.63-1.25 2.75-1.25h.75c2.07 0 3.75-1.68 3.75-3.75 0-.928-.259-1.816-.612-2.68l-.028-.069c-.333-.81-.675-1.638-1.015-2.49-.34-.852-.442-1.86-.12-2.77m-8.38 0c.142-.386.322-.753.541-1.098.683-1.078 1.803-1.902 3.069-1.902s2.386.824 3.069 1.902c.219.345.399.712.541 1.098"),
-      ("Status pages", "Beautiful public status pages for your users. Build trust with real-time transparency about your uptime.", "M3.75 3v11.25A2.25 2.25 0 006 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0118 16.5h-2.25m-7.5 0h7.5m-7.5 0l-1 3m8.5-3l1 3m0 0l.5 1.5m-.5-1.5h-9.5m0 0l-.5 1.5"),
-      ("Response times", "Track response times over time. Spot performance degradation before it becomes an outage.", "M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z"),
-      ("5-min checks", "We ping your endpoints every 5 minutes by default, with intervals as low as 1 minute on paid plans.", "M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"),
-      ("Multi-protocol", "Monitor HTTP, HTTPS, and API endpoints. Check status codes, response bodies, and SSL certificates.", "M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 017.843 4.582M12 3a8.997 8.997 0 00-7.843 4.582m15.686 0A11.953 11.953 0 0112 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0121 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0112 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 013 12c0-1.605.42-3.113 1.157-4.418"),
-      ("Daily digests", "Receive a daily email summary of all your monitors' uptime and performance at a glance.", "M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75")
+      ("Instant alerts", "Get notified via email the moment your service goes down. No more finding out from angry customers.", "M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0"),
+      ("Status pages", "Beautiful public status pages for your users. Build trust with real-time transparency.", "M3.75 3v11.25A2.25 2.25 0 006 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0118 16.5h-2.25m-7.5 0h7.5m-7.5 0l-1 3m8.5-3l1 3m0 0l.5 1.5m-.5-1.5h-9.5m0 0l-.5 1.5"),
+      ("Response times", "Track response times and spot performance degradation before it becomes an outage.", "M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z"),
+      ("Flexible intervals", "Check intervals from 1 minute to 1 hour. Choose what fits your needs and plan.", "M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"),
+      ("Multi-protocol", "Monitor HTTP, HTTPS, and API endpoints. Check status codes and response bodies.", "M12 21a9.004 9.004 0 008.716-6.747M12 21a9.004 9.004 0 01-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 017.843 4.582M12 3a8.997 8.997 0 00-7.843 4.582m15.686 0A11.953 11.953 0 0112 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0121 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0112 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 013 12c0-1.605.42-3.113 1.157-4.418"),
+      ("Daily digests", "Receive a daily summary of all your monitors' uptime and performance at a glance.", "M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75")
     ] %}
-    <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-6">
-      <div class="mb-3 flex h-10 w-10 items-center justify-center rounded-lg bg-brand-600/10">
+    <div class="group rounded-2xl border border-surface-800/60 bg-surface-900/40 p-6 hover:border-brand-500/20 hover:bg-surface-900/60 transition-all duration-300">
+      <div class="mb-4 flex h-10 w-10 items-center justify-center rounded-xl bg-brand-500/10 group-hover:bg-brand-500/15 transition-colors">
         <svg class="h-5 w-5 text-brand-400" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="{{ f[2] }}"/></svg>
       </div>
-      <h3 class="text-base font-semibold text-white mb-1">{{ f[0] }}</h3>
-      <p class="text-sm text-slate-400 leading-relaxed">{{ f[1] }}</p>
+      <h3 class="text-sm font-semibold text-white mb-2">{{ f[0] }}</h3>
+      <p class="text-sm text-surface-400 leading-relaxed">{{ f[1] }}</p>
     </div>
     {% endfor %}
   </div>
 </section>
 
 <!-- Pricing -->
-<section class="mx-auto max-w-5xl px-4 py-20 border-t border-slate-800">
-  <h2 class="text-2xl font-bold text-center text-white mb-2">Simple, transparent pricing</h2>
-  <p class="text-center text-slate-400 mb-12">Start free. Upgrade when you need more.</p>
-  <div class="grid gap-6 sm:grid-cols-3 max-w-3xl mx-auto">
-    {% for plan in [
-      ("Free", "$0", "forever", ["3 monitors", "5-minute checks", "Public status page", "Email alerts"]),
-      ("Pro", "$9", "/month", ["50 monitors", "1-minute checks", "Custom status page", "Priority alerts", "Response time analytics"]),
-      ("Business", "$29", "/month", ["200 monitors", "30-second checks", "Team accounts", "API access", "Webhook integrations", "SLA reports"])
-    ] %}
-    <div class="rounded-xl border {{ 'border-brand-500 ring-1 ring-brand-500/20' if plan[0] == 'Pro' else 'border-slate-800' }} bg-slate-900/50 p-6 flex flex-col">
-      {% if plan[0] == 'Pro' %}<span class="mb-3 inline-block self-start rounded-full bg-brand-600/20 px-2.5 py-0.5 text-xs font-medium text-brand-400">Popular</span>{% endif %}
-      <h3 class="text-lg font-semibold text-white">{{ plan[0] }}</h3>
-      <div class="mt-2 mb-4"><span class="text-3xl font-bold text-white">{{ plan[1] }}</span><span class="text-slate-400 text-sm">{{ plan[2] }}</span></div>
-      <ul class="mb-6 space-y-2 text-sm text-slate-400 flex-1">
-        {% for item in plan[3] %}
-        <li class="flex items-center gap-2">
-          <svg class="h-4 w-4 text-green-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg>
-          {{ item }}
-        </li>
-        {% endfor %}
-      </ul>
-      <a href="/signup" class="block text-center rounded-lg {{ 'bg-brand-600 text-white hover:bg-brand-500' if plan[0] == 'Pro' else 'bg-slate-800 text-slate-300 hover:bg-slate-700' }} px-4 py-2 text-sm font-medium">Get started</a>
+<section class="relative mx-auto max-w-6xl px-6 py-24">
+  <div class="absolute inset-0 bg-gradient-to-b from-transparent via-brand-500/[0.02] to-transparent"></div>
+  <div class="relative">
+    <div class="text-center mb-16">
+      <h2 class="text-3xl font-bold text-white">Simple pricing</h2>
+      <p class="text-surface-400 mt-3">Start free. Upgrade when you need more.</p>
     </div>
-    {% endfor %}
+    <div class="grid gap-6 sm:grid-cols-3 max-w-4xl mx-auto">
+      {% for plan in [
+        ("Free", "$0", "forever", ["3 monitors", "5-minute checks", "Public status page", "Email alerts"], false),
+        ("Pro", "$9", "/month", ["50 monitors", "1-minute checks", "Custom status page", "Priority alerts", "Response analytics"], true),
+        ("Business", "$29", "/month", ["200 monitors", "30-second checks", "Team accounts", "API access", "Webhook integrations", "SLA reports"], false)
+      ] %}
+      <div class="relative rounded-2xl border {{ 'border-brand-500/40 bg-brand-500/[0.03]' if plan[4] else 'border-surface-800/60 bg-surface-900/40' }} p-6 flex flex-col transition-all hover:-translate-y-1 duration-300">
+        {% if plan[4] %}
+        <div class="absolute -top-3 left-1/2 -translate-x-1/2">
+          <span class="rounded-full bg-brand-600 px-3 py-1 text-xs font-semibold text-white shadow-lg shadow-brand-600/30">Most popular</span>
+        </div>
+        {% endif %}
+        <h3 class="text-lg font-semibold text-white">{{ plan[0] }}</h3>
+        <div class="mt-3 mb-6">
+          <span class="text-4xl font-bold text-white tracking-tight">{{ plan[1] }}</span>
+          <span class="text-surface-500 text-sm ml-1">{{ plan[2] }}</span>
+        </div>
+        <ul class="mb-8 space-y-3 text-sm text-surface-400 flex-1">
+          {% for item in plan[3] %}
+          <li class="flex items-center gap-2.5">
+            <svg class="h-4 w-4 {{ 'text-brand-400' if plan[4] else 'text-surface-500' }} shrink-0" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5"/></svg>
+            {{ item }}
+          </li>
+          {% endfor %}
+        </ul>
+        <a href="/signup" class="block text-center rounded-xl {{ 'bg-brand-600 text-white hover:bg-brand-500 shadow-lg shadow-brand-600/20' if plan[4] else 'bg-surface-800 text-surface-300 hover:bg-surface-700' }} px-4 py-2.5 text-sm font-medium transition-all">Get started</a>
+      </div>
+      {% endfor %}
+    </div>
   </div>
 </section>
 
 <!-- Footer -->
-<footer class="border-t border-slate-800 py-8">
-  <p class="text-center text-sm text-slate-500">Pingback &mdash; Uptime monitoring made simple.</p>
+<footer class="border-t border-surface-800/60 py-10">
+  <div class="mx-auto max-w-6xl px-6 flex items-center justify-between">
+    <div class="flex items-center gap-2">
+      <img src="/static/logo.png" alt="Pingback" class="h-5 opacity-50">
+      <span class="text-sm text-surface-600">Pingback</span>
+    </div>
+    <p class="text-sm text-surface-600">Uptime monitoring made simple.</p>
+  </div>
 </footer>
 {% endblock %}
