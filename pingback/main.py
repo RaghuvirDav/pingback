@@ -11,6 +11,7 @@ from pingback.db.connection import close_database, get_database
 from pingback.routes.checks import router as checks_router
 from pingback.routes.health import router as health_router
 from pingback.routes.monitors import router as monitors_router
+from pingback.routes.status import router as status_router
 from pingback.services.scheduler import start_scheduler, stop_scheduler
 
 logging.basicConfig(level=logging.INFO)
@@ -32,6 +33,7 @@ app = FastAPI(title="Pingback", version="0.1.0", lifespan=lifespan)
 app.include_router(health_router)
 app.include_router(monitors_router)
 app.include_router(checks_router)
+app.include_router(status_router)
 
 
 if __name__ == "__main__":

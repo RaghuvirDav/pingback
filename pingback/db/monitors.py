@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 import aiosqlite
@@ -155,6 +155,39 @@ async def get_check_history(
         )
         for r in rows
     ]
+
+
+async def get_30day_uptime(db: aiosqlite.Connection, monitor_id: str) -> float:
+    """Return uptime percentage over the last 30 days (0.0–100.0)."""
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
+    async with db.execute(
+        """SELECT
+               COUNT(*) AS total,
+               SUM(CASE WHEN status = 'up' THEN 1 ELSE 0 END) AS up_count
+           FROM check_results
+           WHERE monitor_id = ? AND checked_at >= ?""",
+        (monitor_id, cutoff),
+    ) as cursor:
+        row = await cursor.fetchone()
+    total = row["total"]
+    if total == 0:
+        return 100.0
+    return round(row["up_count"] / total * 100, 2)
+
+
+async def get_response_times(
+    db: aiosqlite.Connection, monitor_id: str, limit: int = 50
+) -> list[dict]:
+    """Return recent response times as [{checked_at, response_time_ms}]."""
+    async with db.execute(
+        """SELECT checked_at, response_time_ms
+           FROM check_results
+           WHERE monitor_id = ? AND response_time_ms IS NOT NULL
+           ORDER BY checked_at DESC LIMIT ?""",
+        (monitor_id, limit),
+    ) as cursor:
+        rows = await cursor.fetchall()
+    return [{"checked_at": r["checked_at"], "response_time_ms": r["response_time_ms"]} for r in reversed(rows)]
 
 
 async def find_monitors_with_last_check(
