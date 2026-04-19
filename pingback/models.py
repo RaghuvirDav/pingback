@@ -13,6 +13,7 @@ class CreateMonitorInput(BaseModel):
     name: str
     url: HttpUrl
     interval_seconds: int = 300
+    is_public: bool = False
 
 
 class Monitor(BaseModel):
@@ -22,6 +23,18 @@ class Monitor(BaseModel):
     url: str
     interval_seconds: int
     status: MonitorStatus
+    is_public: bool
+    created_at: str
+    updated_at: str
+
+
+class PublicMonitor(BaseModel):
+    id: str
+    name: str
+    url: str
+    interval_seconds: int
+    status: MonitorStatus
+    is_public: bool
     created_at: str
     updated_at: str
 

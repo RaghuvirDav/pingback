@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from pingback.auth import get_current_user
+from pingback.auth import get_current_user, get_optional_user
 from pingback.db.connection import get_database
 from pingback.db.monitors import (
     create_monitor,
@@ -10,7 +10,7 @@ from pingback.db.monitors import (
     find_monitor_by_id,
     find_monitors_with_last_check,
 )
-from pingback.models import CreateMonitorInput, Monitor, MonitorWithLastCheck
+from pingback.models import CreateMonitorInput, Monitor, MonitorWithLastCheck, PublicMonitor
 
 router = APIRouter(prefix="/api")
 
@@ -27,6 +27,7 @@ async def create_monitor_route(
         name=body.name,
         url=str(body.url),
         interval_seconds=body.interval_seconds,
+        is_public=body.is_public,
     )
     return monitor
 
@@ -42,13 +43,23 @@ async def list_user_monitors(
     return await find_monitors_with_last_check(db, user_id)
 
 
-@router.get("/monitors/{monitor_id}", response_model=Monitor)
-async def get_monitor(monitor_id: str):
+@router.get("/monitors/{monitor_id}", response_model=PublicMonitor)
+async def get_monitor(
+    monitor_id: str,
+    current_user: dict | None = Depends(get_optional_user),
+):
     db = await get_database()
     monitor = await find_monitor_by_id(db, monitor_id)
     if monitor is None:
         raise HTTPException(status_code=404, detail="Monitor not found")
-    return monitor
+    # Authenticated owner can always see their own monitor
+    is_owner = current_user is not None and current_user["id"] == monitor.user_id
+    if not monitor.is_public and not is_owner:
+        raise HTTPException(status_code=404, detail="Monitor not found")
+    # Owner gets full Monitor; everyone else gets PublicMonitor (no user_id)
+    if is_owner:
+        return monitor
+    return PublicMonitor(**{k: v for k, v in monitor.model_dump().items() if k != "user_id"})
 
 
 @router.delete("/monitors/{monitor_id}", status_code=204)

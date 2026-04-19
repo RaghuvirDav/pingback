@@ -19,13 +19,14 @@ async def create_monitor(
     name: str,
     url: str,
     interval_seconds: int = 300,
+    is_public: bool = False,
 ) -> Monitor:
     monitor_id = str(uuid.uuid4())
     now = _now_iso()
     await db.execute(
-        """INSERT INTO monitors (id, user_id, name, url, interval_seconds, status, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, 'active', ?, ?)""",
-        (monitor_id, user_id, name, url, interval_seconds, now, now),
+        """INSERT INTO monitors (id, user_id, name, url, interval_seconds, status, is_public, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, 'active', ?, ?, ?)""",
+        (monitor_id, user_id, name, url, interval_seconds, int(is_public), now, now),
     )
     await db.commit()
     return Monitor(
@@ -35,6 +36,7 @@ async def create_monitor(
         url=url,
         interval_seconds=interval_seconds,
         status="active",
+        is_public=is_public,
         created_at=now,
         updated_at=now,
     )
@@ -42,7 +44,7 @@ async def create_monitor(
 
 async def find_monitor_by_id(db: aiosqlite.Connection, monitor_id: str) -> Optional[Monitor]:
     async with db.execute(
-        "SELECT id, user_id, name, url, interval_seconds, status, created_at, updated_at FROM monitors WHERE id = ?",
+        "SELECT id, user_id, name, url, interval_seconds, status, is_public, created_at, updated_at FROM monitors WHERE id = ?",
         (monitor_id,),
     ) as cursor:
         row = await cursor.fetchone()
@@ -55,6 +57,7 @@ async def find_monitor_by_id(db: aiosqlite.Connection, monitor_id: str) -> Optio
         url=row["url"],
         interval_seconds=row["interval_seconds"],
         status=row["status"],
+        is_public=bool(row["is_public"]),
         created_at=row["created_at"],
         updated_at=row["updated_at"],
     )
@@ -62,7 +65,7 @@ async def find_monitor_by_id(db: aiosqlite.Connection, monitor_id: str) -> Optio
 
 async def find_monitors_by_user(db: aiosqlite.Connection, user_id: str) -> list[Monitor]:
     async with db.execute(
-        "SELECT id, user_id, name, url, interval_seconds, status, created_at, updated_at FROM monitors WHERE user_id = ? ORDER BY created_at DESC",
+        "SELECT id, user_id, name, url, interval_seconds, status, is_public, created_at, updated_at FROM monitors WHERE user_id = ? ORDER BY created_at DESC",
         (user_id,),
     ) as cursor:
         rows = await cursor.fetchall()
@@ -70,6 +73,7 @@ async def find_monitors_by_user(db: aiosqlite.Connection, user_id: str) -> list[
         Monitor(
             id=r["id"], user_id=r["user_id"], name=r["name"], url=r["url"],
             interval_seconds=r["interval_seconds"], status=r["status"],
+            is_public=bool(r["is_public"]),
             created_at=r["created_at"], updated_at=r["updated_at"],
         )
         for r in rows
@@ -78,13 +82,14 @@ async def find_monitors_by_user(db: aiosqlite.Connection, user_id: str) -> list[
 
 async def find_active_monitors(db: aiosqlite.Connection) -> list[Monitor]:
     async with db.execute(
-        "SELECT id, user_id, name, url, interval_seconds, status, created_at, updated_at FROM monitors WHERE status = 'active'"
+        "SELECT id, user_id, name, url, interval_seconds, status, is_public, created_at, updated_at FROM monitors WHERE status = 'active'"
     ) as cursor:
         rows = await cursor.fetchall()
     return [
         Monitor(
             id=r["id"], user_id=r["user_id"], name=r["name"], url=r["url"],
             interval_seconds=r["interval_seconds"], status=r["status"],
+            is_public=bool(r["is_public"]),
             created_at=r["created_at"], updated_at=r["updated_at"],
         )
         for r in rows

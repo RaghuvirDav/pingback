@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS monitors (
     url TEXT NOT NULL,
     interval_seconds INTEGER NOT NULL DEFAULT 300,
     status TEXT NOT NULL DEFAULT 'active',
+    is_public INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
@@ -42,8 +43,19 @@ CREATE INDEX IF NOT EXISTS idx_check_results_checked_at ON check_results(checked
 """
 
 
+MIGRATIONS = [
+    # Add is_public column to monitors (idempotent)
+    """ALTER TABLE monitors ADD COLUMN is_public INTEGER NOT NULL DEFAULT 0""",
+]
+
+
 async def initialize_database(db: aiosqlite.Connection) -> None:
     await db.execute("PRAGMA journal_mode = WAL")
     await db.execute("PRAGMA foreign_keys = ON")
     await db.executescript(SCHEMA_SQL)
+    for migration in MIGRATIONS:
+        try:
+            await db.execute(migration)
+        except Exception:
+            pass  # Column already exists
     await db.commit()
