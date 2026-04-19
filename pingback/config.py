@@ -12,9 +12,19 @@ HOST = os.environ.get("HOST", "0.0.0.0")
 DB_PATH = os.environ.get("DB_PATH", "pingback.db")
 DEFAULT_CHECK_INTERVAL = 300  # 5 minutes in seconds
 CHECK_TIMEOUT_SECONDS = 30
-MAX_MONITORS_FREE = 3
+MAX_MONITORS_FREE = 5
 MAX_MONITORS_PRO = 50
 MAX_MONITORS_BUSINESS = 200
+
+# Check intervals per plan (seconds).
+CHECK_INTERVAL_FREE = 300      # 5 minutes
+CHECK_INTERVAL_PRO = 60        # 1 minute
+
+# Stripe billing configuration.
+STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY", "")
+STRIPE_PUBLISHABLE_KEY = os.environ.get("STRIPE_PUBLISHABLE_KEY", "")
+STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
+STRIPE_PRO_PRICE_ID = os.environ.get("STRIPE_PRO_PRICE_ID", "")
 
 # Encryption key for sensitive fields (Fernet symmetric encryption).
 # Generate with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"

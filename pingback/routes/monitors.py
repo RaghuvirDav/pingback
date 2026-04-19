@@ -3,15 +3,24 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException
 
 from pingback.auth import get_current_user, get_optional_user
+from pingback.config import MAX_MONITORS_FREE, MAX_MONITORS_PRO, MAX_MONITORS_BUSINESS
 from pingback.db.connection import get_database
 from pingback.rate_limit import require_rate_limit
 from pingback.db.monitors import (
+    count_user_monitors,
     create_monitor,
     delete_monitor,
     find_monitor_by_id,
     find_monitors_with_last_check,
 )
 from pingback.models import CreateMonitorInput, Monitor, MonitorWithLastCheck, PublicMonitor
+
+
+_PLAN_LIMITS = {
+    "free": MAX_MONITORS_FREE,
+    "pro": MAX_MONITORS_PRO,
+    "business": MAX_MONITORS_BUSINESS,
+}
 
 router = APIRouter(prefix="/api")
 
@@ -22,6 +31,13 @@ async def create_monitor_route(
     current_user: dict = Depends(get_current_user),
 ):
     db = await get_database()
+    current_count = await count_user_monitors(db, current_user["id"])
+    limit = _PLAN_LIMITS.get(current_user.get("plan", "free"), MAX_MONITORS_FREE)
+    if current_count >= limit:
+        raise HTTPException(
+            status_code=403,
+            detail=f"Monitor limit reached ({limit}). Upgrade your plan for more monitors.",
+        )
     monitor = await create_monitor(
         db,
         user_id=current_user["id"],

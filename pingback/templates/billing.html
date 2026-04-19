@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+{% block title %}Billing - Pingback{% endblock %}
+{% block body %}
+{% include "nav.html" %}
+<div class="mx-auto max-w-xl px-4 py-8">
+  <h1 class="text-2xl font-bold text-white mb-6">Billing</h1>
+
+  {% if success %}
+  <div class="mb-4 rounded-lg bg-green-500/10 border border-green-500/20 px-4 py-3 text-sm text-green-400">{{ success }}</div>
+  {% endif %}
+  {% if error %}
+  <div class="mb-4 rounded-lg bg-red-500/10 border border-red-500/20 px-4 py-3 text-sm text-red-400">{{ error }}</div>
+  {% endif %}
+
+  <!-- Current plan -->
+  <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-5 mb-6">
+    <h2 class="text-sm font-semibold text-white mb-4">Current plan</h2>
+    <div class="flex items-center justify-between mb-4">
+      <div>
+        <span class="inline-flex items-center rounded-full px-3 py-1 text-sm font-semibold
+          {{ 'bg-brand-500/20 text-brand-400' if user.plan == 'pro' else 'bg-slate-700 text-slate-300' }}">
+          {{ user.plan|capitalize }}
+        </span>
+        {% if user.plan == 'pro' and subscription %}
+        <p class="text-xs text-slate-400 mt-2">
+          {% if subscription.cancel_at_period_end %}
+            Cancels at end of period
+          {% else %}
+            Renews {{ subscription.current_period_end | int | default(0) }}
+          {% endif %}
+        </p>
+        {% endif %}
+      </div>
+      {% if user.plan == 'pro' %}
+      <span class="text-2xl font-bold text-white">$9<span class="text-sm font-normal text-slate-400">/mo</span></span>
+      {% else %}
+      <span class="text-2xl font-bold text-white">Free</span>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Plan comparison -->
+  <div class="grid grid-cols-2 gap-4 mb-6">
+    <!-- Free tier -->
+    <div class="rounded-xl border {{ 'border-slate-800' if user.plan != 'free' else 'border-brand-500/50' }} bg-slate-900/50 p-5">
+      <h3 class="text-sm font-semibold text-white mb-1">Free</h3>
+      <p class="text-2xl font-bold text-white mb-4">$0<span class="text-sm font-normal text-slate-400">/mo</span></p>
+      <ul class="space-y-2 text-sm text-slate-300">
+        <li class="flex items-start gap-2">
+          <span class="text-green-400 mt-0.5">&#10003;</span>
+          5 monitors
+        </li>
+        <li class="flex items-start gap-2">
+          <span class="text-green-400 mt-0.5">&#10003;</span>
+          5-minute check interval
+        </li>
+        <li class="flex items-start gap-2">
+          <span class="text-green-400 mt-0.5">&#10003;</span>
+          Email alerts
+        </li>
+        <li class="flex items-start gap-2">
+          <span class="text-green-400 mt-0.5">&#10003;</span>
+          Public status page
+        </li>
+      </ul>
+      {% if user.plan == 'free' %}
+      <div class="mt-4 text-center text-xs text-slate-500 font-medium">Current plan</div>
+      {% endif %}
+    </div>
+
+    <!-- Pro tier -->
+    <div class="rounded-xl border {{ 'border-brand-500/50' if user.plan == 'pro' else 'border-slate-800' }} bg-slate-900/50 p-5">
+      <h3 class="text-sm font-semibold text-white mb-1">Pro</h3>
+      <p class="text-2xl font-bold text-white mb-4">$9<span class="text-sm font-normal text-slate-400">/mo</span></p>
+      <ul class="space-y-2 text-sm text-slate-300">
+        <li class="flex items-start gap-2">
+          <span class="text-brand-400 mt-0.5">&#10003;</span>
+          50 monitors
+        </li>
+        <li class="flex items-start gap-2">
+          <span class="text-brand-400 mt-0.5">&#10003;</span>
+          1-minute check interval
+        </li>
+        <li class="flex items-start gap-2">
+          <span class="text-brand-400 mt-0.5">&#10003;</span>
+          Priority alerts
+        </li>
+        <li class="flex items-start gap-2">
+          <span class="text-brand-400 mt-0.5">&#10003;</span>
+          Public status page
+        </li>
+      </ul>
+      {% if user.plan == 'pro' %}
+      <div class="mt-4 text-center text-xs text-brand-400 font-medium">Current plan</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Actions -->
+  {% if user.plan == 'free' %}
+  <div class="rounded-xl border border-brand-500/30 bg-brand-500/5 p-5">
+    <h2 class="text-sm font-semibold text-white mb-2">Upgrade to Pro</h2>
+    <p class="text-xs text-slate-400 mb-4">Get 50 monitors, 1-minute checks, and priority alerts for $9/month.</p>
+    <form method="post" action="/dashboard/billing/checkout">
+      <button type="submit" class="rounded-lg bg-brand-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-brand-500">
+        Upgrade to Pro &mdash; $9/mo
+      </button>
+    </form>
+  </div>
+  {% else %}
+  <div class="rounded-xl border border-slate-800 bg-slate-900/50 p-5">
+    <h2 class="text-sm font-semibold text-white mb-2">Manage subscription</h2>
+    <p class="text-xs text-slate-400 mb-4">Update payment method, view invoices, or cancel your subscription.</p>
+    <form method="post" action="/dashboard/billing/portal">
+      <button type="submit" class="rounded-lg border border-slate-700 bg-slate-800 px-5 py-2.5 text-sm font-medium text-white hover:bg-slate-700">
+        Open billing portal
+      </button>
+    </form>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

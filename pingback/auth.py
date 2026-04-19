@@ -24,14 +24,14 @@ async def _lookup_user(token: str) -> dict | None:
     token_hash = hash_api_key(token)
     # Primary lookup via hash column (encrypted-era keys)
     async with db.execute(
-        "SELECT id, email, name, plan FROM users WHERE api_key_hash = ?",
+        "SELECT id, email, name, plan, stripe_customer_id, stripe_subscription_id FROM users WHERE api_key_hash = ?",
         (token_hash,),
     ) as cursor:
         row = await cursor.fetchone()
     if row is None:
         # Fallback: legacy plaintext api_key lookup (pre-encryption data)
         async with db.execute(
-            "SELECT id, email, name, plan FROM users WHERE api_key = ?",
+            "SELECT id, email, name, plan, stripe_customer_id, stripe_subscription_id FROM users WHERE api_key = ?",
             (token,),
         ) as cursor:
             row = await cursor.fetchone()
@@ -48,6 +48,8 @@ async def _lookup_user(token: str) -> dict | None:
         "email": decrypt_value(row["email"]),
         "name": row["name"],
         "plan": row["plan"],
+        "stripe_customer_id": row["stripe_customer_id"],
+        "stripe_subscription_id": row["stripe_subscription_id"],
     }
 
 

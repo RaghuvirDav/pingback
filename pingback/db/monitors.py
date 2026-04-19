@@ -45,6 +45,15 @@ async def create_monitor(
     )
 
 
+async def count_user_monitors(db: aiosqlite.Connection, user_id: str) -> int:
+    """Return the total number of monitors owned by a user."""
+    async with db.execute(
+        "SELECT COUNT(*) AS cnt FROM monitors WHERE user_id = ?", (user_id,)
+    ) as cursor:
+        row = await cursor.fetchone()
+    return row["cnt"] if row else 0
+
+
 async def find_monitor_by_id(db: aiosqlite.Connection, monitor_id: str) -> Optional[Monitor]:
     async with db.execute(
         "SELECT id, user_id, name, url, interval_seconds, status, is_public, created_at, updated_at FROM monitors WHERE id = ?",

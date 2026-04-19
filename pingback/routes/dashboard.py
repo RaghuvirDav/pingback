@@ -11,9 +11,10 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
 from pingback.auth import _lookup_user, hash_api_key
-from pingback.config import APP_BASE_URL
+from pingback.config import APP_BASE_URL, MAX_MONITORS_FREE, MAX_MONITORS_PRO, MAX_MONITORS_BUSINESS
 from pingback.db.connection import get_database
 from pingback.db.monitors import (
+    count_user_monitors,
     create_monitor,
     delete_monitor,
     find_monitor_by_id,
@@ -22,6 +23,12 @@ from pingback.db.monitors import (
     get_check_history,
     get_response_times,
 )
+
+_PLAN_LIMITS = {
+    "free": MAX_MONITORS_FREE,
+    "pro": MAX_MONITORS_PRO,
+    "business": MAX_MONITORS_BUSINESS,
+}
 from pingback.encryption import encrypt_value
 from pingback.session import clear_session, get_session_key, set_session
 
@@ -219,6 +226,16 @@ async def new_monitor_submit(
     if user is None:
         return _redirect("/login")
     db = await get_database()
+
+    current_count = await count_user_monitors(db, user["id"])
+    limit = _PLAN_LIMITS.get(user.get("plan", "free"), MAX_MONITORS_FREE)
+    if current_count >= limit:
+        return templates.TemplateResponse("monitor_form.html", {
+            "request": request, "user": user, "monitor": None,
+            "error": f"You've reached your plan limit of {limit} monitors. Upgrade to add more.",
+            "name": name, "url": url,
+        }, status_code=403)
+
     monitor = await create_monitor(db, user["id"], name, url, interval_seconds, bool(is_public))
     return _redirect(f"/dashboard/monitors/{monitor.id}")
 

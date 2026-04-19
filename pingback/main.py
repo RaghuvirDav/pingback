@@ -10,6 +10,7 @@ from pingback.config import HOST, PORT
 from pingback.db.connection import close_database, get_database
 from pingback.middleware import AuditLogMiddleware, HTTPSRedirectMiddleware
 from pingback.routes.audit import router as audit_router
+from pingback.routes.billing import router as billing_router
 from pingback.routes.checks import router as checks_router
 from pingback.routes.dashboard import router as dashboard_router
 from pingback.routes.digest import router as digest_router
@@ -42,6 +43,7 @@ app.include_router(checks_router)
 app.include_router(users_router)
 app.include_router(audit_router)
 app.include_router(digest_router)
+app.include_router(billing_router)
 app.include_router(dashboard_router)
 
 

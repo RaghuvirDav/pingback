@@ -82,6 +82,9 @@ MIGRATIONS = [
     """ALTER TABLE users ADD COLUMN api_key_hash TEXT""",
     # Track last login time for abandoned-account detection
     """ALTER TABLE users ADD COLUMN last_login_at TEXT""",
+    # Stripe billing integration
+    """ALTER TABLE users ADD COLUMN stripe_customer_id TEXT""",
+    """ALTER TABLE users ADD COLUMN stripe_subscription_id TEXT""",
 ]
 
 
