@@ -2,15 +2,27 @@
 
 A minimal, self-hostable uptime monitor. FastAPI + SQLite + nginx on a single t2.micro.
 
-## Deploying it yourself
+## Quick start — Docker Compose
 
-See **[README-SELFHOST.md](README-SELFHOST.md)** for the end-to-end AWS free-tier walkthrough: launch EC2 → clone → `setup-ec2.sh` → DNS → `enable-https.sh` → healthy HTTPS deployment.
+```bash
+git clone https://github.com/RaghuvirDav/pingback.git
+cd pingback
+cp .env.example .env
+# set ENCRYPTION_KEY (see the comment inside .env); leave RESEND_API_KEY blank for a no-email run
+docker compose up -d
+open http://localhost:8000
+```
 
-## Local development
+That's the whole local self-host path. The SQLite DB lives in the `pingback-data` Docker volume.
+
+## Production deploy (AWS free tier)
+
+See **[README-SELFHOST.md](README-SELFHOST.md)** for the end-to-end AWS walkthrough: launch EC2 → clone → `setup-ec2.sh` → DNS → `enable-https.sh` → healthy HTTPS deployment.
+
+## Local development (no Docker)
 
 ```bash
 cp .env.example .env
-# fill ENCRYPTION_KEY at minimum; leave RESEND_API_KEY blank for a no-email dev run
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 uvicorn pingback.main:app --reload
