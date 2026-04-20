@@ -150,8 +150,10 @@ input, textarea, select { font-family: inherit; color: inherit; }
   border-top: 1px solid var(--line-soft);
   padding-top: 14px;
   display: flex; align-items: center; gap: 10px;
+  min-width: 0;
 }
 .avatar {
+  flex: 0 0 auto;
   width: 32px; height: 32px;
   border-radius: 10px;
   background: linear-gradient(135deg, var(--bg-3), var(--bg-4));
@@ -159,9 +161,19 @@ input, textarea, select { font-family: inherit; color: inherit; }
   font-size: 12px; font-weight: 600;
   color: var(--fg-0);
 }
-.user-meta { line-height: 1.2; }
-.user-meta .name { font-size: 13px; font-weight: 500; }
-.user-meta .plan { font-size: 11px; color: var(--fg-3); font-family: var(--ff-mono); }
+.user-meta { line-height: 1.2; min-width: 0; }
+.user-meta .name {
+  font-size: 13px; font-weight: 500; color: var(--fg-0);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.user-meta .user-plan {
+  font-size: 11px; color: var(--fg-3); font-family: var(--ff-mono);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  margin-top: 2px;
+}
+.logout-form { display: inline-flex; flex: 0 0 auto; }
+.logout-btn { color: var(--fg-3); padding: 6px; border-radius: 8px; }
+.logout-btn:hover { color: var(--fg-0); background: var(--bg-1); }
 
 /* ---------- MAIN ---------- */
 .main { min-width: 0; }

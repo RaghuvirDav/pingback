@@ -35,11 +35,11 @@
   <div class="sidebar-foot">
     <div class="avatar">{{ (user.name or user.email or 'U')[0:2]|upper }}</div>
     <div class="user-meta grow">
-      <div class="name">{{ user.name or user.email }}</div>
-      <div class="plan">{{ (user.plan or 'free')|upper }}{% if monitor_count is defined %} · {{ monitor_count }} monitors{% endif %}</div>
+      <div class="name" title="{{ user.name or user.email }}">{{ user.name or user.email }}</div>
+      <div class="user-plan">{{ (user.plan or 'free')|upper }}{% if monitor_count is defined %} · {{ monitor_count }} monitors{% endif %}</div>
     </div>
-    <form method="post" action="/logout" style="display:inline">
-      <button type="submit" class="btn btn-ghost btn-icon" title="Log out" aria-label="Log out">{{ ic.i_logout(14) }}</button>
+    <form method="post" action="/logout" class="logout-form">
+      <button type="submit" class="btn btn-ghost btn-icon logout-btn" title="Log out" aria-label="Log out">{{ ic.i_logout(14) }}</button>
     </form>
   </div>
 </aside>
