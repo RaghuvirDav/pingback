@@ -1,0 +1,52 @@
+{% import "_brand.html" as brand %}
+{% import "_icons.html" as ic %}
+<aside class="sidebar" id="pb-sidebar">
+  <a href="/" class="brand" style="cursor:pointer">{{ brand.brand_logo(22) }}</a>
+
+  <div style="padding: 0 6px 14px">
+    <a href="/dashboard/monitors/new" class="btn btn-primary btn-full">
+      {{ ic.i_plus(14) }} New monitor
+    </a>
+  </div>
+
+  <a class="nav-item {% if active == 'dashboard' %}active{% endif %}" href="/dashboard">
+    <span class="nav-icon">{{ ic.i_home(16) }}</span><span>Overview</span>
+  </a>
+  <a class="nav-item {% if active == 'monitors' %}active{% endif %}" href="/dashboard#monitors">
+    <span class="nav-icon">{{ ic.i_pulse(16) }}</span><span>Monitors</span>
+    {% if monitor_count is defined and monitor_count %}<span class="nav-badge">{{ monitor_count }}</span>{% endif %}
+  </a>
+  <a class="nav-item" href="/status/{{ user.id }}">
+    <span class="nav-icon">{{ ic.i_shield(16) }}</span><span>Status page</span>
+  </a>
+
+  <div class="nav-section">Account</div>
+  <a class="nav-item {% if active == 'settings' %}active{% endif %}" href="/dashboard/settings">
+    <span class="nav-icon">{{ ic.i_gear(16) }}</span><span>Settings</span>
+  </a>
+  <a class="nav-item {% if active == 'billing' %}active{% endif %}" href="/dashboard/billing">
+    <span class="nav-icon">{{ ic.i_receipt(16) }}</span><span>Billing</span>
+  </a>
+
+  <div class="sidebar-foot">
+    <div class="avatar">{{ (user.name or user.email or 'U')[0:2]|upper }}</div>
+    <div class="user-meta grow">
+      <div class="name">{{ user.name or user.email }}</div>
+      <div class="plan">{{ (user.plan or 'free')|upper }}{% if monitor_count is defined %} · {{ monitor_count }} monitors{% endif %}</div>
+    </div>
+    <form method="post" action="/logout" style="display:inline">
+      <button type="submit" class="btn btn-ghost btn-icon" title="Log out" aria-label="Log out">{{ ic.i_logout(14) }}</button>
+    </form>
+  </div>
+</aside>
+
+<script>
+  // Mobile sidebar toggle
+  document.addEventListener('click', function(e) {
+    var t = e.target.closest('[data-toggle-sidebar]');
+    if (t) {
+      document.getElementById('pb-sidebar').classList.toggle('open');
+      e.preventDefault();
+    }
+  });
+</script>

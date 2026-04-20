@@ -1,106 +1,109 @@
 {% extends "base.html" %}
-{% block title %}Settings - Pingback{% endblock %}
+{% import "_icons.html" as ic %}
+{% set active = 'settings' %}
+{% set crumbs = ['Pingback', 'Settings'] %}
+{% block title %}Settings — Pingback{% endblock %}
 {% block body %}
-{% include "nav.html" %}
-<div class="mx-auto max-w-lg px-6 py-10 animate-fade-in">
-  <h1 class="text-2xl font-bold text-white tracking-tight mb-8">Settings</h1>
+<div class="app">
+  {% include "_sidebar.html" %}
+  <div class="main">
+    {% include "_topbar.html" %}
+    <div class="page" style="max-width:860px">
 
-  {% if success %}
-  <div class="mb-6 rounded-xl bg-brand-500/10 border border-brand-500/15 px-4 py-3 text-sm text-brand-400 animate-slide-up">{{ success }}</div>
-  {% endif %}
-  {% if error %}
-  <div class="mb-6 rounded-xl bg-red-500/10 border border-red-500/15 px-4 py-3 text-sm text-red-400 animate-slide-up">{{ error }}</div>
-  {% endif %}
+      <h1 class="page-title">Settings</h1>
+      <div class="page-sub">Account, notifications, API keys, and status page.</div>
 
-  <div class="space-y-6">
-    <!-- Profile section -->
-    <div class="rounded-2xl border border-surface-800/60 bg-surface-900/40 p-6">
-      <h2 class="text-sm font-semibold text-white mb-5">Profile</h2>
-      <dl class="space-y-4 text-sm">
-        <div class="flex justify-between items-center">
-          <dt class="text-surface-500">Email</dt>
-          <dd class="text-white font-mono text-xs">{{ user.email }}</dd>
-        </div>
-        <div class="flex justify-between items-center">
-          <dt class="text-surface-500">Name</dt>
-          <dd class="text-white">{{ user.name or 'Not set' }}</dd>
-        </div>
-        <div class="flex justify-between items-center">
-          <dt class="text-surface-500">Plan</dt>
-          <dd>
-            <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold
-              {{ 'bg-brand-500/15 text-brand-400' if user.plan == 'pro' else 'bg-emerald-500/15 text-emerald-400' if user.plan == 'business' else 'bg-surface-800 text-surface-300' }}">
-              {{ user.plan|capitalize }}
-            </span>
-          </dd>
-        </div>
-        <div class="flex justify-between items-center">
-          <dt class="text-surface-500">User ID</dt>
-          <dd class="text-surface-600 font-mono text-xs">{{ user.id }}</dd>
-        </div>
-      </dl>
-    </div>
+      {% if success %}<div class="flash success">{{ success }}</div>{% endif %}
+      {% if error %}<div class="flash error">{{ error }}</div>{% endif %}
 
-    <!-- API Key section -->
-    <div class="rounded-2xl border border-surface-800/60 bg-surface-900/40 p-6">
-      <h2 class="text-sm font-semibold text-white mb-2">API Key</h2>
-      <p class="text-xs text-surface-500 mb-5">Rotate your API key if you suspect it has been compromised. You will be logged out.</p>
-      <form method="post" action="/dashboard/settings/rotate-key"
-            onsubmit="return confirm('This will invalidate your current API key immediately. Continue?')">
-        <button type="submit" class="rounded-xl border border-yellow-500/20 bg-yellow-500/5 px-4 py-2 text-sm font-medium text-yellow-400 hover:bg-yellow-500/10 transition-colors">
-          Rotate API key
-        </button>
-      </form>
-    </div>
-
-    <!-- Notification preferences -->
-    <div class="rounded-2xl border border-surface-800/60 bg-surface-900/40 p-6">
-      <h2 class="text-sm font-semibold text-white mb-2">Notifications</h2>
-      <p class="text-xs text-surface-500 mb-5">Configure your daily digest email preferences.</p>
-      <form method="post" action="/dashboard/settings/notifications" class="space-y-5">
-        <div class="flex items-center gap-3">
-          <input type="checkbox" id="digest_enabled" name="digest_enabled" value="1"
-                 {{ 'checked' if digest_enabled else '' }}
-                 class="h-4 w-4 rounded border-surface-600 bg-surface-900 text-brand-600 focus:ring-brand-500 focus:ring-offset-surface-950">
-          <label for="digest_enabled" class="text-sm text-surface-300">Enable daily digest email</label>
+      <div class="card">
+        <h3 class="section-title">Profile</h3>
+        <div class="grid-2">
+          <div class="field" style="margin:0">
+            <label>Email</label>
+            <div class="mono small" style="padding-top:6px">{{ user.email }}</div>
+          </div>
+          <div class="field" style="margin:0">
+            <label>Name</label>
+            <div class="mono small" style="padding-top:6px">{{ user.name or '—' }}</div>
+          </div>
+          <div class="field" style="margin:0">
+            <label>Plan</label>
+            <div style="padding-top:4px">
+              <span class="tag {% if user.plan == 'pro' %}up{% endif %}">{{ (user.plan or 'free')|upper }}</span>
+            </div>
+          </div>
+          <div class="field" style="margin:0">
+            <label>User ID</label>
+            <div class="mono small" style="padding-top:6px;color:var(--fg-3);word-break:break-all">{{ user.id }}</div>
+          </div>
         </div>
-        <div>
-          <label for="send_hour_utc" class="block text-sm text-surface-300 mb-2">Send time (UTC hour)</label>
-          <select id="send_hour_utc" name="send_hour_utc"
-                  class="w-36 rounded-xl border border-surface-700 bg-surface-900 px-4 py-2.5 text-sm text-white focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/20 transition-all">
-            {% for h in range(24) %}
-            <option value="{{ h }}" {{ 'selected' if send_hour_utc == h else '' }}>{{ '%02d:00'|format(h) }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <button type="submit" class="rounded-xl bg-brand-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-brand-500 transition-all shadow-sm shadow-brand-600/20">Save preferences</button>
-      </form>
-    </div>
-
-    <!-- Public status page -->
-    <div class="rounded-2xl border border-surface-800/60 bg-surface-900/40 p-6">
-      <h2 class="text-sm font-semibold text-white mb-2">Public status page</h2>
-      <p class="text-xs text-surface-500 mb-4">Share this link with your users to show your public monitors' status.</p>
-      <div class="flex items-center gap-2">
-        <input type="text" readonly value="{{ status_url }}"
-               class="flex-1 rounded-xl border border-surface-700 bg-surface-900 px-4 py-2.5 text-sm text-surface-300 font-mono text-xs"
-               onclick="this.select()">
-        <button onclick="navigator.clipboard.writeText('{{ status_url }}')" class="rounded-xl border border-surface-700 bg-surface-800/60 px-4 py-2.5 text-sm text-surface-400 hover:text-white hover:border-surface-600 transition-all">
-          Copy
-        </button>
       </div>
-    </div>
 
-    <!-- Danger zone -->
-    <div class="rounded-2xl border border-red-500/15 bg-red-500/5 p-6">
-      <h2 class="text-sm font-semibold text-red-400 mb-2">Danger zone</h2>
-      <p class="text-xs text-surface-500 mb-5">Permanently delete your account and all associated data. This cannot be undone.</p>
-      <form method="post" action="/dashboard/settings/delete-account"
-            onsubmit="return confirm('This will permanently delete your account, all monitors, and all check history. Type your email to confirm.') && prompt('Type your email to confirm:') === '{{ user.email }}'">
-        <button type="submit" class="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-2 text-sm font-medium text-red-400 hover:bg-red-500/20 transition-colors">
-          Delete account
-        </button>
-      </form>
+      <div class="sep"></div>
+
+      <div class="card">
+        <h3 class="section-title">API key</h3>
+        <p class="section-sub">Rotate your API key if it may have been leaked. Rotating logs you out.</p>
+        <form method="post" action="/dashboard/settings/rotate-key"
+              onsubmit="return confirm('This will invalidate your current API key immediately. Continue?')">
+          <button type="submit" class="btn btn-warn">Rotate API key</button>
+        </form>
+      </div>
+
+      <div class="sep"></div>
+
+      <div class="card">
+        <h3 class="section-title">Notifications</h3>
+        <p class="section-sub">Configure daily digest email.</p>
+        <form method="post" action="/dashboard/settings/notifications">
+          <label class="row" style="justify-content:space-between;background:var(--bg-2);padding:12px 14px;border-radius:10px;border:1px solid var(--line);margin-bottom:14px;cursor:pointer">
+            <div>
+              <div style="font-size:14px;font-weight:500">Daily digest email</div>
+              <div class="muted small" style="margin-top:2px">Summary of uptime and incidents, delivered once per day.</div>
+            </div>
+            <input type="checkbox" id="digest_enabled" name="digest_enabled" value="1"
+                   {{ 'checked' if digest_enabled else '' }}
+                   style="width:18px;height:18px;accent-color:var(--accent)">
+          </label>
+          <div class="field">
+            <label for="send_hour_utc">Send hour (UTC)</label>
+            <select class="input" id="send_hour_utc" name="send_hour_utc" style="width:160px">
+              {% for h in range(24) %}
+              <option value="{{ h }}" {{ 'selected' if send_hour_utc == h else '' }}>{{ '%02d:00'|format(h) }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <button type="submit" class="btn btn-primary">Save preferences</button>
+        </form>
+      </div>
+
+      <div class="sep"></div>
+
+      <div class="card">
+        <h3 class="section-title">Public status page</h3>
+        <p class="section-sub">Share this URL with your users.</p>
+        <div class="row" style="gap:8px">
+          <input class="input mono" type="text" readonly value="{{ status_url }}" id="status_url"
+                 onclick="this.select()" style="flex:1">
+          <button type="button" class="btn" onclick="navigator.clipboard && navigator.clipboard.writeText('{{ status_url }}')">
+            {{ ic.i_copy(14) }} Copy
+          </button>
+          <a class="btn" href="{{ status_url }}" target="_blank" rel="noopener">Open</a>
+        </div>
+      </div>
+
+      <div class="sep"></div>
+
+      <div class="danger-zone">
+        <h3>Delete account</h3>
+        <p>Permanently delete your account and all monitors/check history. This cannot be undone.</p>
+        <form method="post" action="/dashboard/settings/delete-account"
+              onsubmit="return confirm('Permanently delete your account, all monitors, and all check history?') && prompt('Type your email to confirm:') === '{{ user.email }}'">
+          <button type="submit" class="btn btn-danger">{{ ic.i_trash(14) }} Delete account</button>
+        </form>
+      </div>
+
     </div>
   </div>
 </div>

@@ -1,0 +1,26 @@
+{% macro brand_logo(height=22, pulse=True) -%}
+<svg class="brand-svg" height="{{ height }}" viewBox="0 0 240 64" fill="none" xmlns="http://www.w3.org/2000/svg" style="display:block" aria-label="Pingback">
+  <path d="M6 46 A26 26 0 0 1 58 46" stroke="var(--accent)" stroke-width="6" stroke-linecap="round"></path>
+  <path d="M16 46 A16 16 0 0 1 48 46" stroke="var(--accent)" stroke-width="6" stroke-linecap="round"></path>
+  <circle cx="32" cy="42" r="6" fill="var(--accent)">
+    {% if pulse -%}
+    <animate attributeName="r" values="5.5;7;5.5" dur="1.3s" repeatCount="indefinite"></animate>
+    <animate attributeName="opacity" values="1;0.6;1" dur="1.3s" repeatCount="indefinite"></animate>
+    {%- endif %}
+  </circle>
+  <text x="76" y="49" fill="var(--fg-0)" font-family="Geist, system-ui, sans-serif" font-size="38" font-weight="600" letter-spacing="-1.2">pingback</text>
+</svg>
+{%- endmacro %}
+
+{% macro brand_mark(size=28, pulse=True) -%}
+<svg class="brand-svg" width="{{ size }}" height="{{ size }}" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+  <path d="M6 46 A26 26 0 0 1 58 46" stroke="var(--accent)" stroke-width="6" stroke-linecap="round"></path>
+  <path d="M16 46 A16 16 0 0 1 48 46" stroke="var(--accent)" stroke-width="6" stroke-linecap="round"></path>
+  <circle cx="32" cy="42" r="6" fill="var(--accent)">
+    {% if pulse -%}
+    <animate attributeName="r" values="5.5;7;5.5" dur="1.3s" repeatCount="indefinite"></animate>
+    <animate attributeName="opacity" values="1;0.6;1" dur="1.3s" repeatCount="indefinite"></animate>
+    {%- endif %}
+  </circle>
+</svg>
+{%- endmacro %}

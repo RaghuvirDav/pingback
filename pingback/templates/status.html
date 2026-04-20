@@ -1,79 +1,76 @@
 {% extends "base.html" %}
-{% block title %}Status{% if user_id %} &mdash; {{ user_id }}{% endif %}{% endblock %}
+{% import "_brand.html" as brand %}
+{% import "_icons.html" as ic %}
+{% block title %}Status{% if user_id %} — {{ user_id }}{% endif %}{% endblock %}
 {% block body %}
-<div class="mx-auto max-w-3xl px-6 py-10 animate-fade-in">
-  <div class="mb-8">
-    <div class="flex items-center gap-3 mb-2">
-      <div class="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-500/10">
-        <svg class="h-4 w-4 text-brand-400" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z"/></svg>
-      </div>
-      <h1 class="text-2xl font-bold text-white tracking-tight">Service Status</h1>
+<div class="main">
+  <div class="landing-nav">
+    <a href="/" class="brand" style="padding:0">{{ brand.brand_logo(24) }}</a>
+    <div class="spacer"></div>
+    <span class="muted small">Public status</span>
+  </div>
+
+  <div style="max-width:820px;margin:40px auto 80px;padding:0 24px">
+    <h1 class="page-title" style="font-size:32px">Service status</h1>
+    <div class="page-sub">Real-time uptime for the services below.</div>
+
+    {% if monitors %}
+    <div style="margin:24px 0 28px">
+      <span class="status-pill" style="
+        {% if overall_class == 'operational' %}background:var(--accent-wash);color:var(--accent);border-color:var(--accent-line);
+        {% elif overall_class == 'partial' %}background:oklch(0.82 0.16 75 / 0.12);color:var(--degraded);border-color:oklch(0.82 0.16 75 / 0.3);
+        {% else %}background:oklch(0.70 0.19 25 / 0.12);color:var(--down);border-color:oklch(0.70 0.19 25 / 0.3);
+        {% endif %}">
+        <span class="dot" style="
+          {% if overall_class == 'operational' %}background:var(--accent);box-shadow:0 0 8px var(--accent);
+          {% elif overall_class == 'partial' %}background:var(--degraded);
+          {% else %}background:var(--down);
+          {% endif %}"></span>
+        {{ overall_label }}
+      </span>
     </div>
-    <p class="text-sm text-surface-500 ml-11">Real-time monitoring dashboard</p>
-  </div>
+    {% endif %}
 
-  {% if monitors %}
-  <div class="mb-8 rounded-xl px-5 py-3.5 text-sm font-medium flex items-center gap-3
-    {% if overall_class == 'operational' %}bg-brand-500/5 border border-brand-500/15 text-brand-400
-    {% elif overall_class == 'partial' %}bg-yellow-500/5 border border-yellow-500/15 text-yellow-400
-    {% else %}bg-red-500/5 border border-red-500/15 text-red-400{% endif %}">
-    <span class="relative flex h-2.5 w-2.5 shrink-0">
-      {% if overall_class == 'operational' %}
-      <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-400 opacity-75"></span>
-      <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-brand-500"></span>
-      {% elif overall_class == 'partial' %}
-      <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-yellow-500"></span>
-      {% else %}
-      <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-      <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span>
-      {% endif %}
-    </span>
-    {{ overall_label }}
-  </div>
-  {% endif %}
+    {% if not monitors %}
+    <div class="empty">
+      <div class="empty-icon">{{ ic.i_pulse(24) }}</div>
+      <h3>No public monitors</h3>
+      <p>The owner of this status page has not configured any public monitors yet.</p>
+    </div>
+    {% endif %}
 
-  {% if not monitors %}
-  <div class="rounded-2xl border border-surface-800/60 bg-surface-900/40 py-20 text-center text-sm text-surface-600">
-    No monitors configured.
-  </div>
-  {% endif %}
-
-  <div class="space-y-4">
-    {% for m in monitors %}
-    <div class="rounded-2xl border border-surface-800/60 bg-surface-900/40 p-6">
-      <div class="flex items-center justify-between mb-4">
-        <span class="font-semibold text-white">{{ m.name }}</span>
-        <span class="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold uppercase
-          {{ 'bg-brand-500/10 text-brand-400' if m.current_status == 'up' else 'bg-red-500/10 text-red-400' if m.current_status == 'down' else 'bg-yellow-500/10 text-yellow-400' if m.current_status == 'error' else 'bg-surface-800 text-surface-400' }}">
-          <span class="h-1.5 w-1.5 rounded-full {{ 'bg-brand-400' if m.current_status == 'up' else 'bg-red-400' if m.current_status == 'down' else 'bg-yellow-400' if m.current_status == 'error' else 'bg-surface-500' }}"></span>
-          {{ m.current_status }}
-        </span>
-      </div>
-      <div class="flex items-center gap-6 text-xs text-surface-500 mb-4">
-        <span>Uptime (30d): <strong class="text-surface-300 font-semibold">{{ m.uptime }}%</strong></span>
-        {% if m.last_response_ms is not none %}
-        <span>Response: <strong class="text-surface-300 font-semibold">{{ m.last_response_ms }}ms</strong></span>
-        {% endif %}
-        {% if m.last_checked %}
-        <span>Checked: {{ m.last_checked }}</span>
-        {% endif %}
-      </div>
-      {% if m.response_times %}
-      <div class="flex items-end gap-[2px] h-10">
-        {% for rt in m.response_times %}
-        <div class="flex-1 min-w-[3px] max-w-[10px] rounded-t-sm bg-brand-500/60 hover:bg-brand-400 transition-colors cursor-default"
-          style="height:{{ rt.height }}%"
-          title="{{ rt.ms }}ms">
+    <div style="display:flex;flex-direction:column;gap:12px">
+      {% for m in monitors %}
+      <div class="card">
+        <div class="row" style="justify-content:space-between;margin-bottom:10px">
+          <span style="font-weight:500;font-size:15px">{{ m.name }}</span>
+          <span class="status-badge {{ m.current_status }}"><span class="dot"></span>{{ m.current_status }}</span>
         </div>
-        {% endfor %}
+        <div class="row" style="gap:20px;margin-bottom:12px;font-size:12px;color:var(--fg-3)">
+          <span>Uptime 30d <strong style="color:var(--fg-1)" class="mono">{{ m.uptime }}%</strong></span>
+          {% if m.last_response_ms is not none %}
+          <span>Response <strong style="color:var(--fg-1)" class="mono">{{ m.last_response_ms }}ms</strong></span>
+          {% endif %}
+          {% if m.last_checked %}
+          <span>Last check <span class="mono">{{ m.last_checked }}</span></span>
+          {% endif %}
+        </div>
+        {% if m.response_times %}
+        <div class="bars bars-small">
+          {% for rt in m.response_times %}
+          <div class="bar {% if rt.ms < 200 %}good{% elif rt.ms < 500 %}warn{% else %}bad{% endif %}"
+               style="height:{{ rt.height }}%"
+               title="{{ rt.ms }}ms"></div>
+          {% endfor %}
+        </div>
+        {% endif %}
       </div>
-      {% endif %}
+      {% endfor %}
     </div>
-    {% endfor %}
-  </div>
 
-  <footer class="mt-10 pt-6 border-t border-surface-800/40 text-center text-xs text-surface-700">
-    Powered by <span class="text-surface-500">Pingback</span>
-  </footer>
+    <div style="margin-top:40px;padding-top:20px;border-top:1px solid var(--line-soft);text-align:center;font-size:12px;color:var(--fg-3)">
+      Powered by <span style="color:var(--fg-1)">Pingback</span>
+    </div>
+  </div>
 </div>
 {% endblock %}

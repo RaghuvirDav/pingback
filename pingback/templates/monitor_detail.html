@@ -1,122 +1,140 @@
 {% extends "base.html" %}
-{% block title %}{{ monitor.name }} - Pingback{% endblock %}
+{% import "_icons.html" as ic %}
+{% set active = 'monitors' %}
+{% set crumbs = ['Pingback', 'Monitors', monitor.name] %}
+{% block title %}{{ monitor.name }} — Pingback{% endblock %}
 {% block body %}
-{% include "nav.html" %}
-<div class="mx-auto max-w-6xl px-6 py-10 animate-fade-in">
-  <!-- Breadcrumb -->
-  <div class="mb-8 flex items-center justify-between">
-    <div class="flex items-center gap-2 text-sm">
-      <a href="/dashboard" class="text-surface-500 hover:text-surface-300 transition-colors">Dashboard</a>
-      <svg class="h-3.5 w-3.5 text-surface-700" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>
-      <span class="text-surface-300">{{ monitor.name }}</span>
-    </div>
-    <a href="/dashboard/monitors/{{ monitor.id }}/edit" class="inline-flex items-center gap-1.5 rounded-lg border border-surface-700 bg-surface-800/60 px-3 py-1.5 text-sm text-surface-400 hover:text-white hover:border-surface-600 transition-all">
-      <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L6.832 19.82a4.5 4.5 0 01-1.897 1.13l-2.685.8.8-2.685a4.5 4.5 0 011.13-1.897L16.863 4.487z"/></svg>
-      Edit
-    </a>
-  </div>
+<div class="app">
+  {% include "_sidebar.html" %}
+  <div class="main">
+    {% include "_topbar.html" %}
+    <div class="page">
 
-  <!-- Header -->
-  <div class="flex items-center gap-4 mb-8">
-    <span class="relative flex h-5 w-5 shrink-0">
-      {% if current_status == 'up' %}
-      <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-400 opacity-60"></span>
-      <span class="relative inline-flex rounded-full h-5 w-5 bg-brand-500"></span>
-      {% elif current_status == 'down' %}
-      <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-60"></span>
-      <span class="relative inline-flex rounded-full h-5 w-5 bg-red-500"></span>
-      {% elif current_status == 'error' %}
-      <span class="relative inline-flex rounded-full h-5 w-5 bg-yellow-500"></span>
-      {% else %}
-      <span class="relative inline-flex rounded-full h-5 w-5 bg-surface-600"></span>
-      {% endif %}
-    </span>
-    <div>
-      <h1 class="text-2xl font-bold text-white tracking-tight">{{ monitor.name }}</h1>
-      <p class="text-sm text-surface-500 mt-0.5">{{ monitor.url }}</p>
-    </div>
-  </div>
-
-  <!-- Stats cards -->
-  <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
-    <div class="rounded-2xl border border-surface-800/60 bg-surface-900/40 p-5">
-      <div class="text-xs text-surface-500 mb-2 uppercase tracking-wider font-medium">Status</div>
-      <div class="text-xl font-bold {{ 'text-brand-400' if current_status == 'up' else 'text-red-400' if current_status == 'down' else 'text-yellow-400' if current_status == 'error' else 'text-surface-400' }}">
-        {{ current_status|upper }}
+      <div class="detail-head">
+        <div>
+          <a class="btn btn-ghost" href="/dashboard" style="padding:4px 8px;margin-bottom:10px;font-size:12px">← Overview</a>
+          <div class="detail-title">
+            <div class="m-indicator {% if current_status == 'down' %}down{% elif current_status == 'error' %}deg{% elif current_status == 'unknown' %}paused{% endif %}"></div>
+            <h1>{{ monitor.name }}</h1>
+            <span class="tag {% if current_status == 'up' %}up{% elif current_status == 'down' %}down{% endif %}">{{ current_status }}</span>
+          </div>
+          <div class="m-url mono" style="margin-top:8px">{{ monitor.url }}</div>
+        </div>
+        <div class="row">
+          <a class="btn" href="/dashboard/monitors/{{ monitor.id }}/edit">{{ ic.i_edit(14) }} Configure</a>
+        </div>
       </div>
-    </div>
-    <div class="rounded-2xl border border-surface-800/60 bg-surface-900/40 p-5">
-      <div class="text-xs text-surface-500 mb-2 uppercase tracking-wider font-medium">Uptime (30d)</div>
-      <div class="text-xl font-bold {{ 'text-brand-400' if uptime >= 99 else 'text-yellow-400' if uptime >= 95 else 'text-red-400' }}">{{ uptime }}%</div>
-    </div>
-    <div class="rounded-2xl border border-surface-800/60 bg-surface-900/40 p-5">
-      <div class="text-xs text-surface-500 mb-2 uppercase tracking-wider font-medium">Last Response</div>
-      <div class="text-xl font-bold text-surface-200">{{ last_response_ms if last_response_ms is not none else '---' }}<span class="text-sm text-surface-600 font-normal">{{ 'ms' if last_response_ms is not none else '' }}</span></div>
-    </div>
-    <div class="rounded-2xl border border-surface-800/60 bg-surface-900/40 p-5">
-      <div class="text-xs text-surface-500 mb-2 uppercase tracking-wider font-medium">Interval</div>
-      <div class="text-xl font-bold text-surface-200">{{ monitor.interval_seconds // 60 }}<span class="text-sm text-surface-600 font-normal ml-0.5">min</span></div>
-    </div>
-  </div>
 
-  <!-- Response time chart -->
-  {% if response_times %}
-  <div class="rounded-2xl border border-surface-800/60 bg-surface-900/40 p-6 mb-8">
-    <h2 class="text-sm font-medium text-surface-300 mb-4">Response time &mdash; last {{ response_times|length }} checks</h2>
-    <div class="flex items-end gap-[2px] h-40">
-      {% for rt in response_times %}
-      <div class="flex-1 min-w-[3px] max-w-[12px] rounded-t-sm transition-all hover:opacity-80 cursor-default
-        {% if rt.ms < 200 %}bg-brand-500/80 hover:bg-brand-400{% elif rt.ms < 500 %}bg-yellow-500/80 hover:bg-yellow-400{% else %}bg-red-500/80 hover:bg-red-400{% endif %}"
-        style="height:{{ rt.height }}%"
-        title="{{ rt.ms }}ms &mdash; {{ rt.checked_at }}">
+      <div class="kpis">
+        <div class="kpi">
+          <div class="k-label">Uptime · 30d</div>
+          <div class="k-value tnum">{{ uptime }}%</div>
+          <div class="k-delta {% if uptime >= 99 %}up-d{% elif uptime < 95 %}down-d{% endif %}">
+            {% if uptime >= 99 %}▲ healthy{% elif uptime >= 95 %}— acceptable{% else %}▼ attention{% endif %}
+          </div>
+        </div>
+        <div class="kpi">
+          <div class="k-label">Last response</div>
+          <div class="k-value tnum">
+            {% if last_response_ms is not none %}{{ last_response_ms }}<span class="muted small"> ms</span>
+            {% else %}<span class="muted">—</span>{% endif %}
+          </div>
+          <div class="k-delta">{{ current_status|upper }}</div>
+        </div>
+        <div class="kpi">
+          <div class="k-label">Interval</div>
+          <div class="k-value tnum">{{ monitor.interval_seconds }}<span class="muted small"> s</span></div>
+          <div class="k-delta">every {{ monitor.interval_seconds }}s</div>
+        </div>
+        <div class="kpi">
+          <div class="k-label">Checks · 24h</div>
+          <div class="k-value tnum">{{ checks_24h if checks_24h is defined else (checks|length) }}</div>
+          <div class="k-delta">last {{ checks|length }} shown</div>
+        </div>
       </div>
-      {% endfor %}
-    </div>
-    <div class="flex justify-between text-[10px] text-surface-600 mt-2 uppercase tracking-wider">
-      <span>{{ response_times[0].checked_at[:16] if response_times else '' }}</span>
-      <span>{{ response_times[-1].checked_at[:16] if response_times else '' }}</span>
-    </div>
-  </div>
-  {% endif %}
 
-  <!-- Recent checks table -->
-  <div class="rounded-2xl border border-surface-800/60 bg-surface-900/40 overflow-hidden">
-    <div class="px-6 py-4 border-b border-surface-800/60">
-      <h2 class="text-sm font-medium text-surface-300">Recent checks</h2>
-    </div>
-    {% if checks %}
-    <div class="overflow-x-auto">
-      <table class="w-full text-sm">
-        <thead>
-          <tr class="border-b border-surface-800/40 text-[10px] text-surface-500 uppercase tracking-wider">
-            <th class="px-6 py-3 text-left font-medium">Status</th>
-            <th class="px-6 py-3 text-left font-medium">Code</th>
-            <th class="px-6 py-3 text-left font-medium">Response</th>
-            <th class="px-6 py-3 text-left font-medium">Time</th>
-            <th class="px-6 py-3 text-left font-medium">Error</th>
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-surface-800/30">
-          {% for c in checks %}
-          <tr class="hover:bg-surface-800/20 transition-colors">
-            <td class="px-6 py-3">
-              <span class="inline-flex items-center gap-2">
-                <span class="h-2 w-2 rounded-full {{ 'bg-brand-500' if c.status == 'up' else 'bg-red-500' if c.status == 'down' else 'bg-yellow-500' }}"></span>
-                <span class="font-medium {{ 'text-brand-400' if c.status == 'up' else 'text-red-400' if c.status == 'down' else 'text-yellow-400' }}">{{ c.status }}</span>
-              </span>
-            </td>
-            <td class="px-6 py-3 text-surface-400 font-mono text-xs">{{ c.status_code or '---' }}</td>
-            <td class="px-6 py-3 text-surface-400">{{ c.response_time_ms ~ 'ms' if c.response_time_ms is not none else '---' }}</td>
-            <td class="px-6 py-3 text-surface-600 text-xs">{{ c.checked_at }}</td>
-            <td class="px-6 py-3 text-red-400/80 text-xs max-w-xs truncate">{{ c.error or '' }}</td>
-          </tr>
+      {% if response_times %}
+      <div class="card chart-card">
+        <div class="chart-head">
+          <h3>Response time — last {{ response_times|length }} checks</h3>
+          <div class="chart-range">
+            <button class="active">Recent</button>
+          </div>
+        </div>
+        <div class="bars" aria-label="Response time history">
+          {% for rt in response_times %}
+          <div class="bar {% if rt.ms < 200 %}good{% elif rt.ms < 500 %}warn{% else %}bad{% endif %}"
+               style="height:{{ rt.height }}%"
+               title="{{ rt.ms }}ms — {{ rt.checked_at }}"></div>
           {% endfor %}
-        </tbody>
-      </table>
+        </div>
+        <div style="display:flex;justify-content:space-between;margin-top:12px;font-size:11px;color:var(--fg-3);font-family:var(--ff-mono);text-transform:uppercase;letter-spacing:0.08em">
+          <span>{{ response_times[0].checked_at[:16] }}</span>
+          <span>{{ response_times|length }} samples</span>
+          <span>{{ response_times[-1].checked_at[:16] }}</span>
+        </div>
+      </div>
+      {% endif %}
+
+      <div class="two-col">
+        <div class="card">
+          <h3 style="margin:0 0 14px;font-size:15px;font-weight:500">Recent checks</h3>
+          {% if checks %}
+          <div class="card flat" style="background:transparent;border:0">
+            <table class="table">
+              <thead>
+                <tr><th>Status</th><th>Code</th><th>Time</th><th>Checked</th></tr>
+              </thead>
+              <tbody>
+                {% for c in checks %}
+                <tr>
+                  <td>
+                    <span class="status-badge {{ c.status }}"><span class="dot"></span>{{ c.status }}</span>
+                  </td>
+                  <td class="mono">{{ c.status_code or '—' }}</td>
+                  <td class="mono">{% if c.response_time_ms is not none %}{{ c.response_time_ms }}ms{% else %}—{% endif %}</td>
+                  <td class="mono" style="color:var(--fg-3)">{{ c.checked_at[:19] }}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          {% else %}
+          <div class="muted small">No checks recorded yet. The scheduler will run the first check shortly.</div>
+          {% endif %}
+        </div>
+        <div class="card">
+          <h3 style="margin:0 0 14px;font-size:15px;font-weight:500">Configuration</h3>
+          <div class="grid-2">
+            <div>
+              <div class="k-label" style="font-size:11px;color:var(--fg-3);text-transform:uppercase;letter-spacing:0.08em">URL</div>
+              <div class="mono small" style="margin-top:6px;word-break:break-all">{{ monitor.url }}</div>
+            </div>
+            <div>
+              <div class="k-label" style="font-size:11px;color:var(--fg-3);text-transform:uppercase;letter-spacing:0.08em">Method</div>
+              <div class="mono small" style="margin-top:6px">GET</div>
+            </div>
+            <div>
+              <div class="k-label" style="font-size:11px;color:var(--fg-3);text-transform:uppercase;letter-spacing:0.08em">Expected</div>
+              <div class="mono small" style="margin-top:6px">2xx</div>
+            </div>
+            <div>
+              <div class="k-label" style="font-size:11px;color:var(--fg-3);text-transform:uppercase;letter-spacing:0.08em">Interval</div>
+              <div class="mono small" style="margin-top:6px">every {{ monitor.interval_seconds }}s</div>
+            </div>
+            <div>
+              <div class="k-label" style="font-size:11px;color:var(--fg-3);text-transform:uppercase;letter-spacing:0.08em">Public</div>
+              <div class="mono small" style="margin-top:6px">{{ 'yes' if monitor.is_public else 'no' }}</div>
+            </div>
+            <div>
+              <div class="k-label" style="font-size:11px;color:var(--fg-3);text-transform:uppercase;letter-spacing:0.08em">Created</div>
+              <div class="mono small" style="margin-top:6px">{{ monitor.created_at[:10] if monitor.created_at else '—' }}</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
     </div>
-    {% else %}
-    <div class="px-6 py-12 text-center text-sm text-surface-600">No checks recorded yet.</div>
-    {% endif %}
   </div>
 </div>
 {% endblock %}

@@ -85,6 +85,11 @@ MIGRATIONS = [
     # Stripe billing integration
     """ALTER TABLE users ADD COLUMN stripe_customer_id TEXT""",
     """ALTER TABLE users ADD COLUMN stripe_subscription_id TEXT""",
+    # Deterministic email hash for signup-time dedup (Fernet encryption is
+    # non-deterministic so a plain UNIQUE index on encrypted `email` does not
+    # prevent duplicate signups).
+    """ALTER TABLE users ADD COLUMN email_hash TEXT""",
+    """CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_hash ON users(email_hash)""",
 ]
 
 

@@ -1,141 +1,166 @@
 {% extends "base.html" %}
-{% block title %}Dashboard - Pingback{% endblock %}
+{% import "_icons.html" as ic %}
+{% set active = 'dashboard' %}
+{% set monitor_count = monitors|length %}
+{% set crumbs = ['Pingback', 'Overview'] %}
+{% block title %}Overview — Pingback{% endblock %}
 {% block body %}
-{% include "nav.html" %}
-<div class="mx-auto max-w-6xl px-6 py-10 animate-fade-in">
-  <!-- Header -->
-  <div class="flex items-center justify-between mb-8">
-    <div>
-      <h1 class="text-2xl font-bold text-white tracking-tight">Monitors</h1>
-      <p class="text-sm text-surface-500 mt-1">{{ monitors|length }} monitor{{ 's' if monitors|length != 1 else '' }} configured</p>
-    </div>
-    <a href="/dashboard/monitors/new"
-       class="group inline-flex items-center gap-2 rounded-xl bg-brand-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-brand-500 transition-all shadow-lg shadow-brand-600/20 hover:shadow-brand-500/30 hover:-translate-y-0.5">
-      <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
-      Add monitor
-    </a>
-  </div>
+<div class="app">
+  {% include "_sidebar.html" %}
+  <div class="main">
+    {% include "_topbar.html" %}
+    <div class="page">
 
-  <!-- Overall status -->
-  {% if monitors %}
-  <div class="mb-8 rounded-xl px-5 py-3.5 text-sm font-medium flex items-center gap-3
-    {% if down_count == 0 %}bg-brand-500/5 border border-brand-500/15 text-brand-400
-    {% elif down_count == monitors|length %}bg-red-500/5 border border-red-500/15 text-red-400
-    {% else %}bg-yellow-500/5 border border-yellow-500/15 text-yellow-400{% endif %}">
-    <span class="relative flex h-2.5 w-2.5 shrink-0">
-      {% if down_count == 0 %}
-      <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-400 opacity-75"></span>
-      <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-brand-500"></span>
-      {% elif down_count == monitors|length %}
-      <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-      <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span>
+      <div class="page-head">
+        <div>
+          <h1 class="page-title">Overview</h1>
+          <div class="page-sub">
+            {% if user.name %}Good to see you, {{ user.name }} — here's how your services are doing today.
+            {% else %}Here's how your services are doing today.{% endif %}
+          </div>
+        </div>
+        <div class="row">
+          <a class="btn btn-primary" href="/dashboard/monitors/new">{{ ic.i_plus(14) }} New monitor</a>
+        </div>
+      </div>
+
+      {% if welcome %}
+      <div class="flash success">
+        {{ ic.i_sparkle(16) }}
+        <div>
+          <strong>Welcome to Pingback{% if user.name %}, {{ user.name }}{% endif %}!</strong>
+          Add your first URL to start tracking uptime.
+        </div>
+      </div>
+      {% endif %}
+
+      {% if monitors %}
+      {# ---------- STATUS HERO ---------- #}
+      {% set up_count = monitors|selectattr('current_status', 'equalto', 'up')|list|length %}
+      {% set err_count = monitors|selectattr('current_status', 'equalto', 'error')|list|length %}
+      {% set total_down_deg = down_count + err_count %}
+      <div class="status-hero {% if total_down_deg == 0 %}all-up{% endif %}">
+        <div style="position:relative">
+          <span class="status-pill">
+            <span class="dot"></span>
+            {% if total_down_deg == 0 %}All systems operational
+            {% else %}{{ total_down_deg }} incident{{ 's' if total_down_deg != 1 else '' }}{% endif %}
+          </span>
+          <h2>
+            {% if total_down_deg == 0 %}Everything is humming along nicely.
+            {% elif down_count == monitors|length %}Major outage — all monitors down.
+            {% else %}Some services need attention.{% endif %}
+          </h2>
+          <p>Tracking <span class="mono">{{ monitors|length }}</span> monitor{{ 's' if monitors|length != 1 else '' }}.
+             {% if avg_latency is defined and avg_latency %}Avg latency <span class="mono">{{ avg_latency }}ms</span>.{% endif %}
+          </p>
+          <div class="status-stats">
+            <div>
+              <div class="s-label">Monitors up</div>
+              <div class="s-value">{{ up_count }}<span class="muted small mono"> / {{ monitors|length }}</span></div>
+            </div>
+            <div>
+              <div class="s-label">Uptime · 30d</div>
+              <div class="s-value">{{ overall_uptime if overall_uptime is defined else '—' }}<span class="muted small mono">{% if overall_uptime is defined %}%{% endif %}</span></div>
+            </div>
+            <div>
+              <div class="s-label">Checks · 24h</div>
+              <div class="s-value">{{ total_checks_24h if total_checks_24h is defined else '—' }}</div>
+            </div>
+          </div>
+        </div>
+        <div class="heatmap-wrap">
+          <div class="heatmap-head"><span>90 days</span><span>today →</span></div>
+          <div class="heatmap">
+            {% for c in heatmap_cells or [] %}
+              <div class="cell {{ c }}" title="{{ c or 'up' }}"></div>
+            {% endfor %}
+            {% if not heatmap_cells %}
+              {% for i in range(90) %}<div class="cell"></div>{% endfor %}
+            {% endif %}
+          </div>
+          <div class="heatmap-head" style="margin-top:8px;margin-bottom:0">
+            <span>{{ overall_uptime if overall_uptime is defined else '—' }}% uptime</span>
+            <span>{{ down_count }} down · {{ err_count }} error</span>
+          </div>
+        </div>
+      </div>
+
+      {# ---------- MONITOR LIST ---------- #}
+      <div class="list-head" id="monitors">
+        <h3>Monitors</h3>
+        <span class="count mono">{{ monitors|length }} total</span>
+      </div>
+
+      <div class="monitors">
+        <div class="mrow head">
+          <span></span>
+          <span>Monitor</span>
+          <span class="spark-cell">Latency</span>
+          <span style="text-align:right">Uptime 30d</span>
+          <span style="text-align:right" class="p95-cell">Last</span>
+          <span style="text-align:right" class="every-cell">Every</span>
+          <span></span>
+        </div>
+        {% for m in monitors %}
+        <a href="/dashboard/monitors/{{ m.id }}" class="mrow" style="color:inherit;text-decoration:none">
+          <div class="m-indicator {% if m.current_status == 'down' %}down{% elif m.current_status == 'error' %}deg{% elif m.current_status == 'unknown' %}paused{% endif %}"></div>
+          <div>
+            <div class="m-name">{{ m.name }}</div>
+            <div class="m-url">{{ m.url }}</div>
+          </div>
+          <div class="spark-cell">
+            {% if m.sparkline %}
+            <svg class="spark" viewBox="0 0 220 28" preserveAspectRatio="none" aria-hidden="true">
+              <polyline points="{{ m.sparkline }}"
+                fill="none"
+                stroke="{% if m.current_status == 'down' %}var(--down){% elif m.current_status == 'error' %}var(--degraded){% else %}var(--accent){% endif %}"
+                stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+            {% endif %}
+          </div>
+          <div class="m-metric tnum">{{ m.uptime }}<span class="unit">%</span></div>
+          <div class="m-metric tnum p95-cell">
+            {% if m.last_response_ms is not none %}
+              <span class="{% if m.last_response_ms > 500 %}bad{% endif %}">{{ m.last_response_ms }}</span><span class="unit">ms</span>
+            {% else %}<span class="muted">—</span>{% endif %}
+          </div>
+          <div class="m-metric small muted mono every-cell">{{ m.interval_seconds }}s</div>
+          <span class="caret">{{ ic.i_chevron(14) }}</span>
+        </a>
+        {% endfor %}
+      </div>
+
       {% else %}
-      <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-yellow-500"></span>
-      {% endif %}
-    </span>
-    {% if down_count == 0 %}All systems operational
-    {% elif down_count == monitors|length %}Major outage &mdash; all monitors down
-    {% else %}{{ down_count }} monitor{{ 's' if down_count != 1 else '' }} down{% endif %}
-  </div>
-  {% endif %}
-
-  {% if not monitors %}
-  <!-- Welcome banner -->
-  {% if welcome %}
-  <div class="mb-8 rounded-2xl border border-brand-500/20 bg-gradient-to-r from-brand-500/5 to-transparent px-6 py-5 animate-slide-up">
-    <div class="flex items-start gap-4">
-      <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-500/10">
-        <svg class="h-5 w-5 text-brand-400" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 00-2.455 2.456z"/></svg>
-      </div>
-      <div>
-        <h3 class="text-sm font-semibold text-white">Welcome to Pingback{{ ', ' + user.name + '!' if user.name else '!' }}</h3>
-        <p class="text-sm text-surface-400 mt-1">Your account is ready. Set up your first monitor to start tracking uptime.</p>
-      </div>
-    </div>
-  </div>
-  {% endif %}
-
-  <!-- Empty state -->
-  <div class="rounded-2xl border border-surface-800/60 bg-surface-900/40 py-16 px-6">
-    <div class="text-center mb-10">
-      <div class="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-surface-800/60">
-        <svg class="h-8 w-8 text-surface-500" fill="none" viewBox="0 0 24 24" stroke-width="1" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z"/></svg>
-      </div>
-      <h3 class="text-xl font-semibold text-white">No monitors yet</h3>
-      <p class="text-sm text-surface-500 mt-2 max-w-md mx-auto">Get started in under a minute &mdash; add a URL and we'll check it automatically.</p>
-    </div>
-
-    <!-- Quick-start steps -->
-    <div class="grid gap-3 sm:grid-cols-3 max-w-2xl mx-auto mb-10">
-      {% for step in [
-        ("Add a monitor", "Enter the URL of a site or API you want to track."),
-        ("Get notified", "Receive daily digest emails with uptime reports."),
-        ("Share status", "Get a public status page to share with your users.")
-      ] %}
-      <div class="rounded-xl border border-surface-800/40 bg-surface-850 p-5 text-center">
-        <div class="mx-auto mb-3 flex h-8 w-8 items-center justify-center rounded-full {{ 'bg-brand-500/15 text-brand-400' if loop.first else 'bg-surface-800 text-surface-500' }} text-sm font-bold">{{ loop.index }}</div>
-        <h4 class="text-sm font-medium text-white mb-1">{{ step[0] }}</h4>
-        <p class="text-xs text-surface-500 leading-relaxed">{{ step[1] }}</p>
-      </div>
-      {% endfor %}
-    </div>
-
-    <div class="text-center">
-      <a href="/dashboard/monitors/new" class="group inline-flex items-center gap-2 rounded-xl bg-brand-600 px-6 py-3 text-sm font-medium text-white hover:bg-brand-500 transition-all shadow-lg shadow-brand-600/20 hover:-translate-y-0.5">
-        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15"/></svg>
-        Create your first monitor
-      </a>
-    </div>
-  </div>
-  {% endif %}
-
-  <!-- Monitor grid -->
-  {% if monitors %}
-  <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-    {% for m in monitors %}
-    <a href="/dashboard/monitors/{{ m.id }}" class="group block rounded-2xl border border-surface-800/60 bg-surface-900/40 p-5 hover:border-surface-700/60 hover:bg-surface-900/60 transition-all duration-200">
-      <div class="flex items-start justify-between mb-4">
-        <div class="min-w-0 flex-1">
-          <div class="text-sm font-semibold text-white truncate group-hover:text-brand-400 transition-colors">{{ m.name }}</div>
-          <div class="text-xs text-surface-600 truncate mt-0.5">{{ m.url }}</div>
-        </div>
-        <span class="relative flex h-3 w-3 shrink-0 ml-3 mt-0.5">
-          {% if m.current_status == 'up' %}
-          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-400 opacity-60"></span>
-          <span class="relative inline-flex rounded-full h-3 w-3 bg-brand-500"></span>
-          {% elif m.current_status == 'down' %}
-          <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-60"></span>
-          <span class="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
-          {% elif m.current_status == 'error' %}
-          <span class="relative inline-flex rounded-full h-3 w-3 bg-yellow-500"></span>
-          {% else %}
-          <span class="relative inline-flex rounded-full h-3 w-3 bg-surface-600"></span>
-          {% endif %}
-        </span>
-      </div>
-
-      <div class="flex items-end justify-between">
-        <div class="flex items-center gap-4">
-          <div>
-            <div class="text-lg font-bold {{ 'text-brand-400' if m.uptime >= 99 else 'text-yellow-400' if m.uptime >= 95 else 'text-red-400' }}">{{ m.uptime }}%</div>
-            <div class="text-[10px] text-surface-600 uppercase tracking-wider font-medium">Uptime</div>
+      {# ---------- EMPTY STATE ---------- #}
+      <div class="empty">
+        <div class="empty-icon">{{ ic.i_pulse(24) }}</div>
+        <h3>No monitors yet</h3>
+        <p>Get started in under a minute — add a URL and we'll check it automatically.</p>
+        <div class="grid-3" style="max-width:680px;margin:0 auto 24px">
+          <div class="card" style="text-align:left">
+            <div class="mono small muted">STEP 1</div>
+            <div style="font-weight:500;margin-top:6px">Add a monitor</div>
+            <div class="muted small" style="margin-top:4px">Enter the URL of a site or API you want to track.</div>
           </div>
-          {% if m.last_response_ms is not none %}
-          <div>
-            <div class="text-lg font-bold text-surface-300">{{ m.last_response_ms }}<span class="text-xs text-surface-600 font-normal ml-0.5">ms</span></div>
-            <div class="text-[10px] text-surface-600 uppercase tracking-wider font-medium">Latency</div>
+          <div class="card" style="text-align:left">
+            <div class="mono small muted">STEP 2</div>
+            <div style="font-weight:500;margin-top:6px">Get notified</div>
+            <div class="muted small" style="margin-top:4px">Daily digest email with uptime and incidents.</div>
           </div>
-          {% endif %}
+          <div class="card" style="text-align:left">
+            <div class="mono small muted">STEP 3</div>
+            <div style="font-weight:500;margin-top:6px">Share status</div>
+            <div class="muted small" style="margin-top:4px">Public status page — one URL, anyone can view.</div>
+          </div>
         </div>
-        <svg class="h-4 w-4 text-surface-700 group-hover:text-surface-400 transition-colors" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/></svg>
+        <a href="/dashboard/monitors/new" class="btn btn-primary btn-lg">
+          {{ ic.i_plus(14) }} Create your first monitor
+        </a>
       </div>
-
-      {% if m.last_checked %}
-      <div class="mt-3 pt-3 border-t border-surface-800/40 text-[10px] text-surface-600">Last checked {{ m.last_checked }}</div>
       {% endif %}
-    </a>
-    {% endfor %}
+
+    </div>
   </div>
-  {% endif %}
 </div>
 {% endblock %}

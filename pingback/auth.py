@@ -18,6 +18,16 @@ def hash_api_key(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
 
 
+def hash_email(email: str) -> str:
+    """Deterministic hash of a user email (case-insensitive), for dedup lookup.
+
+    Fernet encryption is non-deterministic so we can't UNIQUE-index the
+    encrypted `email` column. Store a SHA-256 hash of the normalised email in
+    `email_hash` and enforce uniqueness there.
+    """
+    return hashlib.sha256(email.strip().lower().encode()).hexdigest()
+
+
 async def _lookup_user(token: str) -> dict | None:
     """Look up a user by API key. Tries api_key_hash first, falls back to plaintext column."""
     db = await get_database()

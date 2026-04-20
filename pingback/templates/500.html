@@ -1,20 +1,19 @@
 {% extends "base.html" %}
-{% block title %}500 - Server Error | Pingback{% endblock %}
+{% import "_brand.html" as brand %}
+{% block title %}500 — Pingback{% endblock %}
 {% block body %}
-{% include "nav.html" %}
-
-<div class="flex min-h-[calc(100vh-4rem)] items-center justify-center px-6">
-  <div class="text-center animate-fade-in">
-    <div class="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-3xl bg-surface-900/60 border border-surface-800/60">
-      <span class="text-4xl font-black text-red-500">500</span>
-    </div>
-    <h1 class="text-2xl font-bold tracking-tight text-white">Something went wrong</h1>
-    <p class="mt-3 text-sm text-surface-500 max-w-sm mx-auto leading-relaxed">
-      We hit an unexpected error. Our team has been notified. Please try again in a moment.
-    </p>
-    <div class="mt-8 flex items-center justify-center gap-3">
-      <a href="/dashboard" class="rounded-xl bg-brand-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-500 transition-all shadow-lg shadow-brand-600/20">Go to dashboard</a>
-      <a href="/" class="rounded-xl border border-surface-700 px-5 py-2.5 text-sm font-semibold text-surface-300 hover:border-surface-500 hover:text-white transition-all">Back to home</a>
+<div class="main">
+  {% include "nav.html" %}
+  <div class="centerpage">
+    <div class="auth-card" style="text-align:center">
+      <div class="auth-brand">{{ brand.brand_mark(36) }}</div>
+      <div class="mono small" style="letter-spacing:0.2em;margin-bottom:8px;color:var(--down)">500</div>
+      <h1>Something went wrong</h1>
+      <p style="color:var(--fg-2);margin:10px 0 22px">We hit an unexpected error. Our team has been notified.</p>
+      <div class="row" style="justify-content:center;gap:8px">
+        <a class="btn btn-primary" href="/dashboard">Go to dashboard</a>
+        <a class="btn" href="/">Home</a>
+      </div>
     </div>
   </div>
 </div>

@@ -10,7 +10,7 @@ from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
-from pingback.auth import _lookup_user, hash_api_key
+from pingback.auth import _lookup_user, hash_api_key, hash_email
 from pingback.config import APP_BASE_URL, MAX_MONITORS_FREE, MAX_MONITORS_PRO, MAX_MONITORS_BUSINESS
 from pingback.db.connection import get_database
 from pingback.db.monitors import (
@@ -110,14 +110,12 @@ async def signup_page(request: Request):
 async def signup_submit(request: Request, email: str = Form(...), name: str = Form("")):
     db = await get_database()
 
-    # Check for duplicate email
-    async with db.execute("SELECT id FROM users WHERE email = ?", (email,)) as cur:
-        if await cur.fetchone():
-            # Also check encrypted emails
-            pass
-    # Try encrypted lookup too
-    encrypted_email = encrypt_value(email)
-    async with db.execute("SELECT id FROM users WHERE email = ?", (encrypted_email,)) as cur:
+    # Dedup by deterministic email hash — Fernet encryption is non-deterministic
+    # so a UNIQUE index on the encrypted `email` column does not catch dupes.
+    email_hash_value = hash_email(email)
+    async with db.execute(
+        "SELECT id FROM users WHERE email_hash = ?", (email_hash_value,)
+    ) as cur:
         if await cur.fetchone():
             return templates.TemplateResponse(
                 request, "signup.html",
@@ -130,9 +128,9 @@ async def signup_submit(request: Request, email: str = Form(...), name: str = Fo
     now = datetime.now(timezone.utc).isoformat()
 
     await db.execute(
-        """INSERT INTO users (id, email, name, plan, api_key, api_key_hash, created_at, updated_at, last_login_at)
-           VALUES (?, ?, ?, 'free', ?, ?, ?, ?, ?)""",
-        (user_id, encrypt_value(email), name or None, encrypt_value(api_key), hash_api_key(api_key), now, now, now),
+        """INSERT INTO users (id, email, email_hash, name, plan, api_key, api_key_hash, created_at, updated_at, last_login_at)
+           VALUES (?, ?, ?, ?, 'free', ?, ?, ?, ?, ?)""",
+        (user_id, encrypt_value(email), email_hash_value, name or None, encrypt_value(api_key), hash_api_key(api_key), now, now, now),
     )
 
     # Create default digest preferences
@@ -171,34 +169,89 @@ async def dashboard(request: Request):
 
     monitors = []
     down_count = 0
+    latencies: list[int] = []
+    uptimes: list[float] = []
     for mwc in monitors_raw:
         uptime = await get_30day_uptime(db, mwc.id)
+        uptimes.append(uptime)
         current_status = "unknown"
         last_response_ms = None
         last_checked = None
+        sparkline = None
         if mwc.last_check:
             current_status = mwc.last_check.status
             last_response_ms = mwc.last_check.response_time_ms
             last_checked = mwc.last_check.checked_at
+        if last_response_ms is not None:
+            latencies.append(last_response_ms)
         if current_status in ("down", "error"):
             down_count += 1
+
+        # Sparkline from the 20 most recent samples (server-rendered polyline points)
+        rts = await get_response_times(db, mwc.id, limit=20)
+        if rts:
+            vals = [r["response_time_ms"] for r in rts if r["response_time_ms"] is not None]
+            if len(vals) >= 2:
+                mx, mn = max(vals) or 1, min(vals)
+                rng = (mx - mn) or 1
+                w, h = 220.0, 24.0
+                step = w / (len(vals) - 1)
+                pts = [f"{i * step:.1f},{h - ((v - mn) / rng) * (h - 2) - 1:.1f}" for i, v in enumerate(vals)]
+                sparkline = " ".join(pts)
+
         monitors.append({
             "id": mwc.id,
             "name": mwc.name,
             "url": mwc.url,
+            "interval_seconds": mwc.interval_seconds,
             "current_status": current_status,
             "uptime": uptime,
             "last_response_ms": last_response_ms,
             "last_checked": last_checked,
+            "sparkline": sparkline,
         })
 
     welcome = request.query_params.get("welcome") == "1" and not monitors
+
+    overall_uptime = round(sum(uptimes) / len(uptimes), 2) if uptimes else None
+    avg_latency = round(sum(latencies) / len(latencies)) if latencies else None
+
+    # Heatmap summary: keep lightweight — mark today's cell worst-of-all.
+    cells = [""] * 90
+    if monitors:
+        worst = "up"
+        for m in monitors:
+            s = m["current_status"]
+            if s == "down":
+                worst = "down"
+                break
+            if s == "error" and worst == "up":
+                worst = "deg"
+        cells[-1] = {"up": "", "deg": "deg", "down": "down"}.get(worst, "")
+
+    total_checks_24h: int | None = None
+    try:
+        async with db.execute(
+            "SELECT COUNT(*) AS n FROM checks c "
+            "JOIN monitors m ON m.id = c.monitor_id "
+            "WHERE m.user_id = ? AND c.checked_at >= datetime('now', '-1 day')",
+            (user["id"],),
+        ) as cur:
+            row = await cur.fetchone()
+            if row:
+                total_checks_24h = row["n"]
+    except Exception:
+        total_checks_24h = None
 
     return templates.TemplateResponse(request, "dashboard.html", {
         "user": user,
         "monitors": monitors,
         "down_count": down_count,
         "welcome": welcome,
+        "overall_uptime": overall_uptime,
+        "avg_latency": avg_latency,
+        "heatmap_cells": cells,
+        "total_checks_24h": total_checks_24h,
     })
 
 
