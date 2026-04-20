@@ -21,7 +21,7 @@
     <div class="hero-demo-frame">
       <div class="hero-demo-bar">
         <div class="tls"><span class="tl"></span><span class="tl"></span><span class="tl"></span></div>
-        <div class="url">app.pingback.dev/overview</div>
+        <div class="url">app.example.com/overview</div>
         <div style="width:44px"></div>
       </div>
       <div style="padding:24px;background:var(--bg-0)">
@@ -36,9 +36,9 @@
         </div>
         <div class="monitors" style="background:var(--bg-1)">
           {% for m in [
-            ('marketing site', 'https://pingback.dev', 99.98, 142, 60),
-            ('api / health',   'https://api.pingback.dev/healthz', 99.95, 88, 30),
-            ('checkout flow',  'https://app.pingback.dev/checkout', 99.71, 612, 60),
+            ('marketing site', 'https://example.com', 99.98, 142, 60),
+            ('api / health',   'https://api.example.com/healthz', 99.95, 88, 30),
+            ('checkout flow',  'https://app.example.com/checkout', 99.71, 612, 60),
           ] %}
           <div class="mrow">
             <div class="m-indicator{% if loop.index == 3 %} deg{% endif %}"></div>

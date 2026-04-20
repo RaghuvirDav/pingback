@@ -75,7 +75,7 @@ python3 -m pytest tests/ -v
 
 - [ ] Free user sees FREE plan marked "Current plan"; PRO CTA is clickable.
 - [ ] PRO plan click → `/dashboard/billing/checkout` (without Stripe secret key, graceful failure; with key, redirect to Stripe).
-- [ ] Business plan tile → `mailto:sales@pingback.dev` link.
+- [ ] Business plan tile → `mailto:sales@example.com` link (matches template default).
 
 ## 8. Error pages
 

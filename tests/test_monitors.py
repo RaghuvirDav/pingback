@@ -37,11 +37,11 @@ def test_create_monitor_happy_path(client):
 
 def test_monitor_appears_on_dashboard(client):
     _signup(client)
-    _create_monitor(client, name="Marketing Site", url="https://pingback.dev")
+    _create_monitor(client, name="Marketing Site", url="https://example.com")
     r = client.get("/dashboard")
     assert r.status_code == 200
     assert "Marketing Site" in r.text
-    assert "pingback.dev" in r.text
+    assert "example.com" in r.text
     # Empty-state copy must be gone now
     assert "No monitors yet" not in r.text
 

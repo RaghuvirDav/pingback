@@ -45,7 +45,7 @@ APP_ENV = os.environ.get("APP_ENV", "development")
 RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")
 
 # The verified sender address used for outgoing emails.
-RESEND_FROM_EMAIL = os.environ.get("RESEND_FROM_EMAIL", "Pingback <noreply@pingback.dev>")
+RESEND_FROM_EMAIL = os.environ.get("RESEND_FROM_EMAIL", "Pingback <noreply@example.com>")
 
 # Base URL for links in emails (unsubscribe, dashboard).
 APP_BASE_URL = os.environ.get("APP_BASE_URL", "http://localhost:8000")
