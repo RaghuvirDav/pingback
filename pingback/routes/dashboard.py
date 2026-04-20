@@ -75,6 +75,24 @@ async def pricing(request: Request):
     return templates.TemplateResponse(request, "pricing.html", {"user": user})
 
 
+@router.get("/terms", response_class=HTMLResponse)
+async def terms(request: Request):
+    user = await _get_ui_user(request)
+    return templates.TemplateResponse(request, "terms.html", {"user": user})
+
+
+@router.get("/privacy", response_class=HTMLResponse)
+async def privacy(request: Request):
+    user = await _get_ui_user(request)
+    return templates.TemplateResponse(request, "privacy.html", {"user": user})
+
+
+@router.get("/refund", response_class=HTMLResponse)
+async def refund(request: Request):
+    user = await _get_ui_user(request)
+    return templates.TemplateResponse(request, "refund.html", {"user": user})
+
+
 # ---------------------------------------------------------------------------
 # Auth pages
 # ---------------------------------------------------------------------------

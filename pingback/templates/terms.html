@@ -1,0 +1,62 @@
+{% extends "_legal_layout.html" %}
+{% block title %}Terms of Service — Pingback{% endblock %}
+{% block legal_body %}
+<h1>Terms of Service</h1>
+<p class="updated">Last updated: 20 April 2026</p>
+
+<p>These Terms of Service ("Terms") govern your use of Pingback ("the Service"), the hosted uptime monitoring product available at <a href="https://usepingback.com">usepingback.com</a>, operated by the Pingback team based in India ("we", "us", "our"). By creating an account or using the Service you agree to these Terms.</p>
+
+<p>Pingback is also distributed as open-source software under the MIT license at <a href="https://github.com/RaghuvirDav/pingback">github.com/RaghuvirDav/pingback</a>. These Terms apply only to the hosted Service. Self-hosted deployments are governed by the MIT license shipped with the source code.</p>
+
+<h2>1. The Service</h2>
+<p>Pingback performs scheduled HTTP checks against URLs you register, records the results, and sends alerts when state changes. Specifics of what each plan includes (monitor count, check interval, retention) are described on the <a href="/pricing">pricing page</a> and may change with reasonable notice.</p>
+
+<h2>2. Accounts</h2>
+<ul>
+  <li>You must provide a working email address. We use it to send you check alerts, billing receipts, and account notices.</li>
+  <li>You are responsible for keeping your API key and login credentials confidential. Activity that occurs under your credentials is your responsibility.</li>
+  <li>One person or organisation per account. Sharing a single account across many unrelated users is not permitted on Free.</li>
+</ul>
+
+<h2>3. Acceptable use</h2>
+<p>You agree not to use the Service to:</p>
+<ul>
+  <li>Monitor URLs you do not own or do not have permission to probe.</li>
+  <li>Generate request volumes that materially exceed the documented check interval for your plan, or otherwise attempt to use Pingback as a load-testing or denial-of-service tool.</li>
+  <li>Probe targets in a way that violates the target's terms of service or applicable law.</li>
+  <li>Reverse engineer, scrape, or resell the Service in a way that competes directly with the hosted product (the source is open — fork it instead).</li>
+</ul>
+<p>We may suspend monitors or accounts that violate this section. We will tell you why before terminating where possible.</p>
+
+<h2>4. Plans, billing, and taxes</h2>
+<ul>
+  <li>The <strong>Free</strong> plan is offered without charge, subject to the limits on the pricing page.</li>
+  <li>The <strong>Pro</strong> plan is $12 USD per month (or $120 USD per year) and is billed in advance through our payment processors, currently Stripe and Paddle. Paddle acts as the merchant of record for transactions it processes; in those cases your contract for payment is with Paddle, and Paddle handles applicable sales tax, VAT, and GST.</li>
+  <li>Subscriptions renew automatically until cancelled. You can cancel at any time from the billing portal; cancellation stops future renewals but does not retroactively refund the current period (see the <a href="/refund">Refund Policy</a>).</li>
+  <li>If a payment fails we may downgrade your account to Free until billing is restored. Data within Free's retention window is preserved.</li>
+</ul>
+
+<h2>5. Service availability</h2>
+<p>We work hard to keep Pingback running, but the Service is provided "as is" without an uptime guarantee. We do not currently offer a paid SLA. Scheduled maintenance, infrastructure incidents, and upstream outages can interrupt service. We will publish material incidents on a status page once available.</p>
+
+<h2>6. Your data</h2>
+<p>You retain ownership of the monitor configurations and check data you create. We process this data on your behalf as described in the <a href="/privacy">Privacy Policy</a>. You can export or delete your data at any time from the dashboard, or by emailing us.</p>
+
+<h2>7. Termination</h2>
+<ul>
+  <li>You can close your account at any time from the dashboard. Your data is deleted within 30 days of closure, except where we are required to keep records (e.g. tax invoices).</li>
+  <li>We may suspend or terminate accounts that violate these Terms, fail to pay, or cause material risk to the Service or other users. We will give notice and a chance to cure where the situation allows.</li>
+</ul>
+
+<h2>8. Disclaimers and liability</h2>
+<p>To the maximum extent permitted by law, the Service is provided "as is" and "as available" without warranties of any kind, express or implied. We are not liable for indirect, incidental, special, consequential, or punitive damages, or for any loss of profits, revenue, data, or business opportunity arising out of your use of the Service. Our aggregate liability for any claim relating to the Service will not exceed the amount you paid us in the twelve months preceding the claim.</p>
+
+<h2>9. Changes to these Terms</h2>
+<p>We may update these Terms from time to time. If a change is material, we will email account holders or post a notice in-product before it takes effect. Continued use of the Service after the effective date constitutes acceptance.</p>
+
+<h2>10. Governing law</h2>
+<p>These Terms are governed by the laws of India. Disputes will be resolved in the courts of competent jurisdiction in India, without prejudice to any non-waivable consumer protections in your country of residence.</p>
+
+<h2>11. Contact</h2>
+<p>Questions about these Terms? Email <a href="mailto:hello@usepingback.com">hello@usepingback.com</a>.</p>
+{% endblock %}

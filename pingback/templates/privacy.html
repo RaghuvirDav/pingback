@@ -1,0 +1,95 @@
+{% extends "_legal_layout.html" %}
+{% block title %}Privacy Policy — Pingback{% endblock %}
+{% block legal_body %}
+<h1>Privacy Policy</h1>
+<p class="updated">Last updated: 20 April 2026</p>
+
+<p>This Privacy Policy explains what data the hosted Pingback service at <a href="https://usepingback.com">usepingback.com</a> collects, why we collect it, and what we do with it. It applies only to the hosted Service. If you self-host Pingback from <a href="https://github.com/RaghuvirDav/pingback">github.com/RaghuvirDav/pingback</a>, we never see your data — your deployment is yours alone.</p>
+
+<h2>1. Who we are</h2>
+<p>Pingback is operated by the Pingback team based in India. For privacy questions, write to <a href="mailto:hello@usepingback.com">hello@usepingback.com</a>.</p>
+
+<h2>2. What we collect</h2>
+
+<h3>Account information</h3>
+<ul>
+  <li><strong>Email address.</strong> Used for sign-in, alerts, billing receipts, and account notices.</li>
+  <li><strong>API key (hashed).</strong> Stored as a one-way hash for authentication. We cannot recover the plaintext.</li>
+  <li><strong>Plan and account state.</strong> Free vs. Pro, signup date, last login, basic flags needed to operate the Service.</li>
+</ul>
+
+<h3>Monitor and check data</h3>
+<ul>
+  <li><strong>Monitor configuration.</strong> The URL you ask us to check, the interval, and any alert routing settings you configure.</li>
+  <li><strong>Check results.</strong> HTTP status code, response time, and the timestamp for each check we run on your behalf. Retention follows your plan (7 days on Free, 90 days on Pro).</li>
+  <li><strong>SSL metadata</strong> for monitors that opt into certificate checks (issuer, expiry).</li>
+</ul>
+
+<h3>Billing data</h3>
+<ul>
+  <li>If you subscribe to Pro, our payment processors (Stripe and Paddle) collect the payment details directly. We never see or store your card number.</li>
+  <li>We retain billing metadata returned by the processor — customer ID, subscription status, invoice IDs, and the amount billed — to operate subscriptions and meet tax/accounting obligations.</li>
+</ul>
+
+<h3>Operational logs</h3>
+<ul>
+  <li><strong>Request logs.</strong> Method, path, status code, request ID, IP address, and user agent. Used for debugging, abuse prevention, and audit. Retained for up to 30 days.</li>
+  <li><strong>Audit log.</strong> Authentication events and administrative actions on your account. Retained for the life of the account, then deleted on account closure.</li>
+  <li><strong>Error reports</strong> may be sent to <a href="https://sentry.io">Sentry</a> for diagnostics. We scrub credentials and try to avoid sending personal data, but stack traces can incidentally include request paths or identifiers.</li>
+</ul>
+
+<h2>3. Why we collect it</h2>
+<ul>
+  <li>To run the checks you ask us to run and deliver the alerts you ask us to deliver.</li>
+  <li>To bill, refund, and account for paid plans (and meet related tax obligations).</li>
+  <li>To keep the Service secure: rate limiting, abuse detection, audit trails, incident response.</li>
+  <li>To improve the product. We look at aggregate usage trends, not individual behaviour.</li>
+</ul>
+
+<h2>4. How we share data</h2>
+<p>We do not sell your data. We share it only with the service providers we need to operate the Service:</p>
+<ul>
+  <li><strong>Amazon Web Services</strong> (EC2 in ap-south-1) — hosts the application and database.</li>
+  <li><strong>Amazon Simple Email Service (SES)</strong> — sends account and alert emails.</li>
+  <li><strong>Stripe</strong> and <strong>Paddle</strong> — process payments. Paddle acts as the merchant of record for transactions it handles and may collect tax data required by your jurisdiction.</li>
+  <li><strong>Sentry</strong> — receives error reports for diagnostics.</li>
+  <li><strong>UptimeRobot</strong> and <strong>CloudWatch</strong> — monitor the health of Pingback itself.</li>
+</ul>
+<p>We may also disclose data when required by law, to enforce our Terms, or to protect the rights, property, or safety of Pingback, our users, or others.</p>
+
+<h2>5. Where data is stored</h2>
+<p>Application data is stored on infrastructure in <strong>AWS Asia Pacific (Mumbai)</strong>. Backups may be replicated to other AWS regions for durability. Payment processors and email providers may process data in the United States, the EU, or other regions in line with their published policies.</p>
+
+<h2>6. How long we keep data</h2>
+<ul>
+  <li><strong>Account profile:</strong> for the life of the account, then deleted within 30 days of closure.</li>
+  <li><strong>Check results:</strong> 7 days (Free) or 90 days (Pro) on a rolling window.</li>
+  <li><strong>Request logs:</strong> up to 30 days.</li>
+  <li><strong>Billing records:</strong> retained as required by tax law (typically 7 years).</li>
+</ul>
+
+<h2>7. Your rights</h2>
+<p>You can:</p>
+<ul>
+  <li>Access and export your monitors and check data from the dashboard.</li>
+  <li>Update your email address from settings.</li>
+  <li>Delete your account, which deletes monitors, check results, and audit log entries within 30 days. Billing records are retained for tax compliance only.</li>
+  <li>Email <a href="mailto:hello@usepingback.com">hello@usepingback.com</a> for any access, correction, or erasure request that the dashboard does not cover.</li>
+</ul>
+<p>Depending on where you live, you may also have rights under the GDPR, the UK GDPR, the CCPA, the DPDP Act 2023 (India), or other privacy laws. We will honour valid requests under those laws within the timeframes they require.</p>
+
+<h2>8. Cookies and tracking</h2>
+<p>We use a single first-party session cookie to keep you signed in. We do not run third-party analytics, advertising trackers, or fingerprinting on the Service. The marketing site does not load Google Analytics, Facebook Pixel, or similar tools.</p>
+
+<h2>9. Children</h2>
+<p>Pingback is not designed for children under 16. We do not knowingly collect personal data from children. If you believe we have, contact us and we will delete it.</p>
+
+<h2>10. Security</h2>
+<p>We encrypt data in transit (TLS) and encrypt sensitive fields at rest. API keys are stored as one-way hashes. We log administrative actions, restrict production access, and apply security updates promptly. No system is perfectly secure — if you believe you have found a vulnerability, please email <a href="mailto:hello@usepingback.com">hello@usepingback.com</a>.</p>
+
+<h2>11. Changes to this policy</h2>
+<p>We may update this Privacy Policy as the Service evolves. Material changes will be announced by email or in-product before they take effect.</p>
+
+<h2>12. Contact</h2>
+<p>Email <a href="mailto:hello@usepingback.com">hello@usepingback.com</a> for any privacy question.</p>
+{% endblock %}

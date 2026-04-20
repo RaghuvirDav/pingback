@@ -86,7 +86,7 @@
         ('Can I cancel anytime?', 'Yes. Cancel from the billing portal in one click. You keep Pro until the end of your paid period, then drop to Free — no data loss.'),
         ('Do I have to pay to self-host?', 'No. The full product is open source under MIT. Pro pricing covers the hosted version at usepingback.com.'),
         ('Monthly or annual?', 'Both. Monthly is $12. Annual is $120 — about two months free. You can switch from the billing portal.'),
-        ('Refund policy?', 'If something is broken in your first 30 days, email us and we refund. We would rather earn renewals than trap people.'),
+        ('Refund policy?', '7-day no-questions refund on new Pro subscriptions, plus a 14-day cooling-off window for EU/UK customers. Full details at /refund.'),
         ('What counts as a monitor?', 'One URL checked on a schedule. SSL checks on the same URL do not double-count.'),
         ('How is data stored?', 'Encrypted at rest in SQLite. Free keeps 7 days of history; Pro keeps 90.'),
       ] %}
@@ -115,6 +115,12 @@
   <div class="footer">
     <span class="brand" style="padding:0">{{ brand.brand_logo(20) }}</span>
     <span class="spacer"></span>
+    <a href="/terms">Terms</a>
+    <span>·</span>
+    <a href="/privacy">Privacy</a>
+    <span>·</span>
+    <a href="/refund">Refund</a>
+    <span>·</span>
     <span>© 2026</span>
     <span>·</span>
     <span>Built with FastAPI + SQLite</span>
