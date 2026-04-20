@@ -8,6 +8,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import base64
+import os
 
 from fastapi import Request, Response
 from pingback.config import ENCRYPTION_KEY
@@ -15,6 +16,20 @@ from pingback.config import ENCRYPTION_KEY
 COOKIE_NAME = "pb_session"
 # Use ENCRYPTION_KEY as HMAC secret; fall back to a dev-only default
 _SECRET = (ENCRYPTION_KEY or "pingback-dev-secret-change-me").encode()
+
+
+def _cookie_secure() -> bool:
+    """Return True when cookies should be flagged `Secure` (HTTPS-only).
+
+    Controlled by the `SESSION_COOKIE_SECURE` env var. Default off for local
+    dev so HTTP localhost still works; set to `1` in any production-like
+    deployment (or whenever `APP_ENV=production`, as a safety net)."""
+    flag = os.environ.get("SESSION_COOKIE_SECURE", "").strip().lower()
+    if flag in ("1", "true", "yes", "on"):
+        return True
+    if os.environ.get("APP_ENV", "").strip().lower() == "production":
+        return True
+    return False
 
 
 def _sign(value: str) -> str:
@@ -42,6 +57,7 @@ def set_session(response: Response, api_key: str) -> None:
         COOKIE_NAME,
         _sign(api_key),
         httponly=True,
+        secure=_cookie_secure(),
         samesite="lax",
         max_age=60 * 60 * 24 * 30,  # 30 days
         path="/",

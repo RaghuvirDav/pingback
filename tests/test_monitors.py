@@ -73,6 +73,22 @@ def test_delete_monitor(client):
     assert r.status_code in (404, 302, 307)
 
 
+def test_logged_out_user_cannot_see_monitor_detail(client):
+    """A logged-out user hitting a known monitor URL must be bounced to /login."""
+    _signup(client, email="owner2@example.com")
+    r = _create_monitor(client, name="secret", url="https://secret.example.com")
+    mid = r.headers["location"].rsplit("/", 1)[-1]
+    client.post("/logout", follow_redirects=False)
+
+    for path in (
+        f"/dashboard/monitors/{mid}",
+        f"/dashboard/monitors/{mid}/edit",
+    ):
+        r = client.get(path, follow_redirects=False)
+        assert r.status_code in (302, 303, 307), path
+        assert "/login" in r.headers.get("location", ""), path
+
+
 def test_ownership_enforced(client):
     _signup(client, email="a@example.com")
     r = _create_monitor(client)

@@ -44,3 +44,32 @@ def test_dashboard_requires_login(client):
     r = client.get("/dashboard", follow_redirects=False)
     assert r.status_code in (302, 303, 307)
     assert "/login" in r.headers.get("location", "")
+
+
+def test_dashboard_has_role_main_and_aria_current(client):
+    """A11y: dashboard page must expose the main landmark and mark the
+    active sidebar item with aria-current."""
+    client.post("/signup", data={"email": "a11y@example.com"}, follow_redirects=False)
+    r = client.get("/dashboard")
+    assert r.status_code == 200
+    assert 'role="main"' in r.text
+    # Overview is the active route here.
+    assert 'aria-current="page"' in r.text
+    # The active marker should appear on the Overview link, not Settings.
+    overview_idx = r.text.find(">Overview<")
+    settings_idx = r.text.find(">Settings<")
+    aria_idx = r.text.find('aria-current="page"')
+    assert overview_idx != -1 and aria_idx != -1
+    assert aria_idx < overview_idx, "aria-current should be on Overview link"
+    # And if we move to settings, aria-current should follow.
+    r = client.get("/dashboard/settings")
+    assert r.status_code == 200
+    assert 'aria-current="page"' in r.text
+    settings_idx = r.text.find(">Settings<")
+    aria_idx = r.text.find('aria-current="page"')
+    assert aria_idx < settings_idx
+
+
+def test_landing_has_role_main(client):
+    r = client.get("/")
+    assert 'role="main"' in r.text

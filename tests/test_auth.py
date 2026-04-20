@@ -21,6 +21,23 @@ def test_signup_rejects_duplicate_email(client):
     assert "already exists" in r.text.lower()
 
 
+def test_signup_dedup_is_case_insensitive(client):
+    """email_hash is computed on the normalised (lowercased, stripped) email,
+    so `Alice@Example.com` must collide with `alice@example.com`."""
+    client.post("/signup", data={"email": "Alice@Example.com"})
+    r = client.post("/signup", data={"email": "  alice@example.com  "})
+    assert r.status_code == 409, r.text[:300]
+
+
+def test_hash_email_helper_normalisation():
+    """Unit test for the pure helper — whitespace and case must not matter."""
+    from pingback.auth import hash_email
+
+    assert hash_email("Alice@Example.com") == hash_email("alice@example.com")
+    assert hash_email("  alice@example.com  ") == hash_email("alice@example.com")
+    assert hash_email("a@b.com") != hash_email("c@d.com")
+
+
 def test_dashboard_accessible_after_signup(client):
     client.post("/signup", data={"email": "dash@example.com"}, follow_redirects=False)
     r = client.get("/dashboard")

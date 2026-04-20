@@ -8,7 +8,8 @@ Name | Purpose | Default | Required for production?
 -----|---------|---------|-------------------------
 `ENCRYPTION_KEY` | Fernet key for email / API-key / session encryption. Generate via `python -c "from cryptography.fernet import Fernet;print(Fernet.generate_key().decode())"` | `""` (warning + plaintext) | **Yes**
 `DB_PATH` | SQLite DB path | `pingback.db` | Yes — mount on persistent volume
-`APP_ENV` | Set to `production` for HTTPS redirect middleware | `development` | **Yes**
+`APP_ENV` | Set to `production` for HTTPS redirect middleware + auto-enables `Secure` cookies | `development` | **Yes**
+`SESSION_COOKIE_SECURE` | Explicit override to flag the session cookie as `Secure` (HTTPS-only). Accepts `1`/`true`/`yes`/`on`. | unset | Yes if TLS is in front of the app and `APP_ENV` != `production`
 `APP_BASE_URL` | Used in email + status URL generation | `http://localhost:8000` | **Yes**
 `PORT` / `HOST` | Uvicorn bind | `8000` / `0.0.0.0` | No
 `RETENTION_DAYS` | Days of check history to keep | `90` | No
@@ -83,8 +84,8 @@ Checklist per deploy:
 
 ## Known limitations shipped today (tracked for post-launch)
 
-- Session cookie is not marked `Secure`. Acceptable on `http://localhost` dev; **set `secure=True` in `pingback/session.py` before any public HTTP deployment**.
-- CSRF protection is absent on form submissions. Session auth + SameSite=Lax mitigates most browser-based CSRF; still plan a CSRF token middleware for the next sprint.
+- **Session cookie `Secure` flag is now env-gated.** Set `SESSION_COOKIE_SECURE=1` (or `APP_ENV=production`) in any deployment behind TLS. Default off for local dev so `http://localhost` still works. Covered by `tests/test_session_cookie.py`.
+- **CSRF protection is deferred** — tracked in [MAK-52](/MAK/issues/MAK-52). `SameSite=Lax` + no cross-origin state-changing endpoints is an acceptable v1 risk per board sign-off on 2026-04-20.
 - API keys are returned from signup but never re-shown in UI. Users can rotate via Settings but must save the key themselves — acceptable for MVP.
 - Scheduler is in-process (single-instance). Horizontal scaling requires a distributed lock or a dedicated worker.
 

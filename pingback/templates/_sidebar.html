@@ -9,10 +9,12 @@
     </a>
   </div>
 
-  <a class="nav-item {% if active == 'dashboard' %}active{% endif %}" href="/dashboard">
+  <a class="nav-item {% if active == 'dashboard' %}active{% endif %}" href="/dashboard"
+     {% if active == 'dashboard' %}aria-current="page"{% endif %}>
     <span class="nav-icon">{{ ic.i_home(16) }}</span><span>Overview</span>
   </a>
-  <a class="nav-item {% if active == 'monitors' %}active{% endif %}" href="/dashboard#monitors">
+  <a class="nav-item {% if active == 'monitors' %}active{% endif %}" href="/dashboard#monitors"
+     {% if active == 'monitors' %}aria-current="page"{% endif %}>
     <span class="nav-icon">{{ ic.i_pulse(16) }}</span><span>Monitors</span>
     {% if monitor_count is defined and monitor_count %}<span class="nav-badge">{{ monitor_count }}</span>{% endif %}
   </a>
@@ -21,10 +23,12 @@
   </a>
 
   <div class="nav-section">Account</div>
-  <a class="nav-item {% if active == 'settings' %}active{% endif %}" href="/dashboard/settings">
+  <a class="nav-item {% if active == 'settings' %}active{% endif %}" href="/dashboard/settings"
+     {% if active == 'settings' %}aria-current="page"{% endif %}>
     <span class="nav-icon">{{ ic.i_gear(16) }}</span><span>Settings</span>
   </a>
-  <a class="nav-item {% if active == 'billing' %}active{% endif %}" href="/dashboard/billing">
+  <a class="nav-item {% if active == 'billing' %}active{% endif %}" href="/dashboard/billing"
+     {% if active == 'billing' %}aria-current="page"{% endif %}>
     <span class="nav-icon">{{ ic.i_receipt(16) }}</span><span>Billing</span>
   </a>
 
