@@ -44,7 +44,8 @@ echo ">>> Verifying HTTPS..."
 curl -sS "https://${DOMAIN}/health" && echo
 curl -sS "https://${WWW}/health" && echo
 
-echo ">>> Cert auto-renew timer:"
-sudo systemctl list-timers | grep -i certbot || true
+echo ">>> Enabling cert auto-renew timer..."
+sudo systemctl enable --now certbot-renew.timer
+sudo systemctl list-timers certbot-renew.timer --all
 
 echo "=== HTTPS enabled ==="
