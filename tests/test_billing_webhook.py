@@ -107,8 +107,14 @@ def _user_plan(client, user_id: str) -> tuple[str, str | None, str | None]:
 def _event(event_type: str, obj: dict, event_id: str | None = None) -> dict:
     return {
         "id": event_id or f"evt_{uuid.uuid4().hex}",
+        "object": "event",
+        "api_version": "2024-06-20",
         "type": event_type,
         "data": {"object": obj},
+        "created": int(time.time()),
+        "livemode": False,
+        "pending_webhooks": 0,
+        "request": {"id": None, "idempotency_key": None},
     }
 
 

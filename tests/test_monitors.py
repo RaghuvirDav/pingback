@@ -53,7 +53,7 @@ def test_edit_monitor(client):
 
     r = client.post(
         f"/dashboard/monitors/{mid}/edit",
-        data={"name": "Renamed", "url": "https://example.com", "interval_seconds": 60},
+        data={"name": "Renamed", "url": "https://example.com", "interval_seconds": 300},
         follow_redirects=False,
     )
     assert r.status_code == 303

@@ -1,6 +1,7 @@
 """Stripe billing routes: checkout, webhooks, and billing settings page."""
 from __future__ import annotations
 
+import json
 import logging
 from datetime import datetime, timezone
 from pathlib import Path
@@ -129,21 +130,40 @@ async def stripe_webhook(request: Request):
     if not STRIPE_WEBHOOK_SECRET:
         raise HTTPException(status_code=503, detail="Billing webhook is not configured")
 
+    # Verify the signature against the raw payload (the exact bytes Stripe
+    # signed — never the re-serialized JSON). Stripe's helper expects a str
+    # since it concatenates with the timestamp via %s.
     try:
-        event = stripe.Webhook.construct_event(payload, sig_header, STRIPE_WEBHOOK_SECRET)
-    except (ValueError, stripe.SignatureVerificationError):
+        payload_str = payload.decode("utf-8")
+    except UnicodeDecodeError:
+        raise HTTPException(status_code=400, detail="Invalid webhook payload")
+    try:
+        stripe.WebhookSignature.verify_header(payload_str, sig_header, STRIPE_WEBHOOK_SECRET)
+    except stripe.SignatureVerificationError:
+        raise HTTPException(status_code=400, detail="Invalid webhook signature")
+    except Exception:
         raise HTTPException(status_code=400, detail="Invalid webhook signature")
 
+    try:
+        event = json.loads(payload)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid webhook payload")
+
+    event_id = event.get("id")
+    event_type = event.get("type", "")
+    if not event_id:
+        raise HTTPException(status_code=400, detail="Webhook event missing id")
+
     # Idempotency — Stripe delivers the same event id on retry.
-    if await _already_processed(event["id"]):
-        logger.info("Duplicate Stripe event %s (%s) ignored", event["id"], event["type"])
+    if await _already_processed(event_id):
+        logger.info("Duplicate Stripe event %s (%s) ignored", event_id, event_type)
         return {"received": True, "duplicate": True}
 
-    handler = _WEBHOOK_HANDLERS.get(event["type"])
+    handler = _WEBHOOK_HANDLERS.get(event_type)
     if handler:
-        await handler(event["data"]["object"])
+        await handler(event.get("data", {}).get("object", {}))
 
-    await _record_event(event["id"], event["type"])
+    await _record_event(event_id, event_type)
     return {"received": True}
 
 
