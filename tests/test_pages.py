@@ -79,7 +79,7 @@ def test_terms_page_renders(client):
     r = client.get("/terms")
     assert r.status_code == 200
     assert "Terms of Service" in r.text
-    assert "20 April 2026" in r.text
+    assert "Last updated:" in r.text
     assert "/static/app.css" in r.text
 
 
@@ -87,14 +87,17 @@ def test_privacy_page_renders(client):
     r = client.get("/privacy")
     assert r.status_code == 200
     assert "Privacy Policy" in r.text
-    assert "20 April 2026" in r.text
+    assert "Last updated:" in r.text
 
 
 def test_refund_page_renders(client):
     r = client.get("/refund")
     assert r.status_code == 200
     assert "Refund Policy" in r.text
-    assert "7-day" in r.text
+    assert "14-day no-questions refund" in r.text
+    # Uniform worldwide policy — no EU/UK carveout
+    assert "EU / UK" not in r.text
+    assert "cooling-off" not in r.text
 
 
 def test_landing_footer_links_legal_pages(client):
