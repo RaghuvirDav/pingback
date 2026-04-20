@@ -10,7 +10,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from pingback.config import HOST, PORT
+from pingback.config import DEBUG_BOOM_ENABLED, HOST, PORT
 from pingback.db.connection import close_database, get_database
 from pingback.logging_config import configure_logging
 from pingback.middleware import (
@@ -22,13 +22,16 @@ from pingback.routes.audit import router as audit_router
 from pingback.routes.billing import router as billing_router
 from pingback.routes.checks import router as checks_router
 from pingback.routes.dashboard import router as dashboard_router
+from pingback.routes.debug import router as debug_router
 from pingback.routes.digest import router as digest_router
 from pingback.routes.health import router as health_router
 from pingback.routes.monitors import router as monitors_router
 from pingback.routes.users import router as users_router
+from pingback.sentry_init import init_sentry
 from pingback.services.scheduler import start_scheduler, stop_scheduler
 
 configure_logging()
+init_sentry()
 logger = logging.getLogger("pingback")
 
 
@@ -90,6 +93,8 @@ app.include_router(audit_router)
 app.include_router(digest_router)
 app.include_router(billing_router)
 app.include_router(dashboard_router)
+if DEBUG_BOOM_ENABLED:
+    app.include_router(debug_router)
 
 
 if __name__ == "__main__":

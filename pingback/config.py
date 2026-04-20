@@ -55,3 +55,19 @@ APP_BASE_URL = os.environ.get("APP_BASE_URL", "http://localhost:8000")
 AWS_ACCESS_KEY_ID = os.environ.get("AWS_ACCESS_KEY_ID", "")
 AWS_SECRET_ACCESS_KEY = os.environ.get("AWS_SECRET_ACCESS_KEY", "")
 AWS_DEFAULT_REGION = os.environ.get("AWS_DEFAULT_REGION", "us-east-1")
+
+# Sentry error tracking (free tier — 5k events/mo).
+# Leave SENTRY_DSN empty to disable. No-op safe for local dev.
+SENTRY_DSN = os.environ.get("SENTRY_DSN", "")
+SENTRY_TRACES_SAMPLE_RATE = float(os.environ.get("SENTRY_TRACES_SAMPLE_RATE", "0.1"))
+SENTRY_ENVIRONMENT = os.environ.get("SENTRY_ENVIRONMENT", APP_ENV)
+SENTRY_RELEASE = os.environ.get("SENTRY_RELEASE", "")
+
+# Enables the /debug/boom route so we can verify Sentry wiring end-to-end.
+# Never enable in prod outside a smoke test.
+DEBUG_BOOM_ENABLED = os.environ.get("DEBUG_BOOM_ENABLED", "").lower() in (
+    "1",
+    "true",
+    "yes",
+    "on",
+)

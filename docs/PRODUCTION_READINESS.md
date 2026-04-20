@@ -17,6 +17,11 @@ Name | Purpose | Default | Required for production?
 `RESEND_API_KEY` + `RESEND_FROM_EMAIL` | Transactional email | empty | Yes if sending digest
 `STRIPE_SECRET_KEY` + `STRIPE_WEBHOOK_SECRET` + `STRIPE_PRO_PRICE_ID` | Billing | empty | Yes for paid plans
 `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_DEFAULT_REGION` | SES/S3 | empty | Only if used
+`SENTRY_DSN` | Enables Sentry error tracking (free tier). See [OPERATIONS.md](OPERATIONS.md#sentry-error-tracking-mak-58). | empty (disabled) | Yes in prod once DSN issued
+`SENTRY_TRACES_SAMPLE_RATE` | Perf transaction sample rate | `0.1` | No
+`SENTRY_ENVIRONMENT` | Sentry environment tag | falls back to `APP_ENV` | No
+`SENTRY_RELEASE` | Git SHA for release tagging | empty | Recommended in prod
+`DEBUG_BOOM_ENABLED` | Mounts `/debug/boom` for Sentry smoke test | unset | Only during verification
 
 Secrets management: never commit `.env`. Use AWS Parameter Store / SSM or Docker secrets.
 
@@ -80,7 +85,12 @@ Checklist per deploy:
 - Scheduler writes structured log lines on each tick (`INFO:pingback.scheduler:Scheduler started`).
 - Audit log is queryable for business-plan users via `/api/audit-log`.
 
-**Follow-up:** add Prometheus metrics or Sentry for production error tracking — not in scope for today's launch.
+**Sentry** is wired in ([MAK-58](/MAK/issues/MAK-58)) and activates whenever
+`SENTRY_DSN` is present. PII is scrubbed and events are tagged with
+`request_id` from the JSON-logging middleware. See
+[OPERATIONS.md](OPERATIONS.md#sentry-error-tracking-mak-58).
+
+**Follow-up:** add Prometheus metrics — not in scope for today's launch.
 
 ## Known limitations shipped today (tracked for post-launch)
 
