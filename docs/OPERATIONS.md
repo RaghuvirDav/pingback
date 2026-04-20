@@ -187,7 +187,7 @@ before running the alarms script. Confirm on the host with `df -T /`.
 
 ```
 export PINGBACK_INSTANCE_ID=i-0abc123def4567890
-export ALERT_EMAILS="board@usepingback.com,pingback@usepingback.com"
+export ALERT_EMAILS="ops@example.com,oncall@example.com"
 bash deploy/cloudwatch-alarms.sh
 ```
 

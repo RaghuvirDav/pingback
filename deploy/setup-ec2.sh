@@ -56,8 +56,8 @@ cp "$APP_DIR/deploy/pingback.service" /etc/systemd/system/pingback.service
 systemctl daemon-reload
 systemctl enable pingback
 
-# Nginx config
-cp "$APP_DIR/deploy/nginx-pingback.conf" /etc/nginx/conf.d/pingback.conf
+# Nginx config — bootstrap HTTP-only. Swap to HTTPS via deploy/enable-https.sh after DNS is live.
+cp "$APP_DIR/deploy/nginx-pingback-bootstrap.conf" /etc/nginx/conf.d/pingback.conf
 # Remove default site if present
 rm -f /etc/nginx/sites-enabled/default /etc/nginx/conf.d/default.conf
 
@@ -99,12 +99,14 @@ echo ""
 echo "=== Setup Complete ==="
 echo ""
 echo "Next steps:"
-echo "  1. Edit /opt/pingback/.env with actual credentials"
+echo "  1. Edit /opt/pingback/.env with actual credentials (ENCRYPTION_KEY, RESEND_API_KEY, etc.)"
 echo "  2. Start the app: systemctl start pingback"
 echo "  3. Verify: curl http://localhost:8000/health"
-echo "  4. Point DNS A record for usepingback.com to this EC2 public IP"
-echo "  5. Run certbot: certbot --nginx -d usepingback.com -d www.usepingback.com"
-echo "  6. Verify HTTPS: curl https://usepingback.com/health"
-echo "  7. From an admin host, create CloudWatch alarms (MAK-62). See docs/OPERATIONS.md:"
+echo "  4. Point DNS A records for \$DOMAIN and www.\$DOMAIN to this EC2 public IP"
+echo "  5. Enable HTTPS:"
+echo "       DOMAIN=<your-apex-domain> CERTBOT_EMAIL=<ops-contact> \\"
+echo "         bash /opt/pingback/deploy/enable-https.sh"
+echo "  6. Verify HTTPS: curl https://<your-domain>/health"
+echo "  7. (Optional) From an admin host, create CloudWatch alarms. See docs/OPERATIONS.md:"
 echo "       PINGBACK_INSTANCE_ID=\$(curl -s http://169.254.169.254/latest/meta-data/instance-id) \\"
-echo "         ALERT_EMAILS=\"board@…,pingback@…\" bash deploy/cloudwatch-alarms.sh"
+echo "         ALERT_EMAILS=\"ops@example.com\" bash deploy/cloudwatch-alarms.sh"
