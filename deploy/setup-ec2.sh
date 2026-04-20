@@ -86,6 +86,15 @@ cp "$APP_DIR/deploy/backup-db.sh" /opt/pingback/backup-db.sh
 chmod +x /opt/pingback/backup-db.sh
 (crontab -u "$APP_USER" -l 2>/dev/null || true; echo "0 */6 * * * /opt/pingback/backup-db.sh") | sort -u | crontab -u "$APP_USER" -
 
+# CloudWatch log group retention + metric filters (MAK-60).
+# Skipped automatically if the AWS CLI or instance-profile creds are missing —
+# run `deploy/cloudwatch-setup.sh` manually from a host that has them.
+if command -v aws &>/dev/null && aws sts get-caller-identity &>/dev/null; then
+    bash "$APP_DIR/deploy/cloudwatch-setup.sh" || echo "!!! cloudwatch-setup.sh failed — re-run manually"
+else
+    echo ">>> skipping cloudwatch-setup.sh (no aws cli / creds). Run it from a host with logs:* permissions."
+fi
+
 echo ""
 echo "=== Setup Complete ==="
 echo ""

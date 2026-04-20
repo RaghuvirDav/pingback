@@ -3,6 +3,101 @@
 Runtime operations, deploy, and observability notes. See
 [PRODUCTION_READINESS.md](PRODUCTION_READINESS.md) for the launch checklist.
 
+## CloudWatch Logs: retention + metric filters (MAK-60)
+
+Pingback ships container stdout/stderr to CloudWatch via the Docker `awslogs`
+driver (`docker-compose.aws.yml`). The log group is `pingback` in `us-east-1`.
+
+### Retention — 14 days, non-negotiable
+
+Free-tier CloudWatch Logs gives 5 GB/month of ingest. 14-day retention keeps
+storage comfortably inside that budget long-term. The CEO called it
+non-negotiable; we enforce it in code so console drift can't undo it.
+
+`deploy/cloudwatch-setup.sh` is the source of truth. It is idempotent and is
+called automatically from `deploy/setup-ec2.sh` when AWS CLI creds are
+available. Re-run it any time:
+
+```
+AWS_REGION=us-east-1 bash deploy/cloudwatch-setup.sh
+```
+
+Verify:
+
+```
+aws logs describe-log-groups --log-group-name-prefix pingback \
+  --query 'logGroups[].{name:logGroupName,retentionInDays:retentionInDays}'
+# → retentionInDays: 14
+```
+
+### Metric filters (custom metrics → `Pingback/Logs`)
+
+The setup script installs two JSON metric filters against the `pingback`
+log group:
+
+Filter | Pattern | Metric
+-----|---------|-------
+`ErrorCount` | `{ $.level = "ERROR" }` | `Pingback/Logs/ErrorCount`
+`SchedulerFailureCount` | `{ $.level = "ERROR" && $.logger = "pingback.scheduler" }` | `Pingback/Logs/SchedulerFailureCount`
+
+Both publish `value=1` per matching log record with `defaultValue=0`, so you
+can chart zero-traffic periods without broken lines. These metrics are what
+MAK-62 (alarms) subscribes to — do not rename them without updating that
+ticket.
+
+### Saved Logs Insights queries
+
+`cloudwatch-setup.sh` upserts three query definitions (visible under
+CloudWatch → Logs Insights → *Saved queries*):
+
+Name | What it shows
+-----|--------------
+`Pingback/errors-last-hour` | All `level=ERROR` records, newest first
+`Pingback/5xx-by-path` | HTTP 5xx count grouped by `path`
+`Pingback/scheduler-failures` | Scheduler errors (`logger=pingback.scheduler`)
+
+Raw query strings (paste into Logs Insights if the saved definition is not
+yet installed on a fresh account):
+
+```
+fields @timestamp, level, logger, message, request_id, path, status
+| filter level = "ERROR"
+| sort @timestamp desc
+| limit 200
+```
+
+```
+fields @timestamp, path, status, request_id, duration_ms
+| filter status >= 500
+| stats count() as count by path
+| sort count desc
+```
+
+```
+fields @timestamp, message, request_id
+| filter logger = "pingback.scheduler" and level = "ERROR"
+| sort @timestamp desc
+| limit 200
+```
+
+### IAM — minimum perms for the EC2 instance role
+
+```
+logs:CreateLogGroup
+logs:PutRetentionPolicy
+logs:DescribeLogGroups
+logs:PutMetricFilter
+logs:DescribeMetricFilters
+logs:PutQueryDefinition
+logs:DescribeQueryDefinitions
+logs:CreateLogStream
+logs:PutLogEvents
+```
+
+Scoped to `arn:aws:logs:us-east-1:<account>:log-group:pingback:*` plus a
+blanket `logs:PutQueryDefinition`/`Describe*` on `*` (query definitions are
+account-scoped, not log-group-scoped).
+
 ## Sentry error tracking (MAK-58)
 
 Sentry is wired into the FastAPI app behind the `SENTRY_DSN` env var. When the
