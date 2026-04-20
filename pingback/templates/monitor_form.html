@@ -16,7 +16,14 @@
         <div class="page-sub">{{ 'Update the monitor configuration.' if monitor else 'Register a URL we should check on a schedule.' }}</div>
       </div>
 
-      {% if error %}<div class="flash error">{{ error }}</div>{% endif %}
+      {% if error %}
+      <div class="flash error" style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+        <span>{{ error }}</span>
+        {% if upgrade_required %}
+        <a class="btn btn-primary" href="/pricing" style="white-space:nowrap">Upgrade to Pro</a>
+        {% endif %}
+      </div>
+      {% endif %}
 
       <form method="post">
         <div class="card">

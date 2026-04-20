@@ -90,6 +90,15 @@ MIGRATIONS = [
     # prevent duplicate signups).
     """ALTER TABLE users ADD COLUMN email_hash TEXT""",
     """CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_hash ON users(email_hash)""",
+    # Stripe subscription renewal timestamp (ISO 8601 UTC).
+    """ALTER TABLE users ADD COLUMN plan_renews_at TEXT""",
+    # Idempotency log for Stripe webhook events. Retries deliver the same
+    # event id, so we record each processed id and reject duplicates.
+    """CREATE TABLE IF NOT EXISTS stripe_events (
+        id TEXT PRIMARY KEY,
+        type TEXT NOT NULL,
+        received_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )""",
 ]
 
 

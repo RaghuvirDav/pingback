@@ -468,6 +468,7 @@ h1.page-title {
 }
 .tag.up { background: var(--accent-wash); color: var(--accent); border-color: var(--accent-line); }
 .tag.down { background: oklch(0.70 0.19 25 / 0.12); color: var(--down); border-color: oklch(0.70 0.19 25 / 0.3); }
+.tag.warn { background: oklch(0.78 0.16 75 / 0.12); color: oklch(0.85 0.16 75); border-color: oklch(0.78 0.16 75 / 0.3); }
 
 .kpis {
   display: grid;
@@ -794,8 +795,46 @@ h1.page-title {
   padding: 28px 48px;
   display: flex; align-items: center; gap: 20px;
   color: var(--fg-3); font-size: 13px;
+  flex-wrap: wrap;
 }
 .footer .spacer { flex: 1; }
+.footer a { color: var(--fg-2); }
+.footer a:hover { color: var(--fg-0); }
+
+/* Legal / policy pages */
+.legal {
+  max-width: 760px;
+  margin: 40px auto 64px;
+  padding: 0 28px;
+  color: var(--fg-1);
+  font-size: 15px;
+  line-height: 1.65;
+}
+.legal h1 {
+  font-size: 36px; letter-spacing: -0.025em;
+  font-weight: 600; margin: 24px 0 6px;
+}
+.legal .updated {
+  color: var(--fg-3); font-size: 13px; margin: 0 0 32px;
+}
+.legal h2 {
+  font-size: 20px; letter-spacing: -0.01em;
+  font-weight: 600; margin: 36px 0 10px; color: var(--fg-0);
+}
+.legal h3 {
+  font-size: 16px; font-weight: 600;
+  margin: 24px 0 8px; color: var(--fg-0);
+}
+.legal p, .legal ul, .legal ol { margin: 0 0 14px; }
+.legal ul, .legal ol { padding-left: 22px; }
+.legal li { margin: 4px 0; }
+.legal a { color: var(--accent); }
+.legal a:hover { text-decoration: underline; }
+.legal strong { color: var(--fg-0); font-weight: 600; }
+.legal code {
+  background: var(--bg-1); border: 1px solid var(--line-soft);
+  padding: 1px 6px; border-radius: 6px; font-size: 13px;
+}
 
 /* Modal */
 .modal-backdrop {
@@ -882,6 +921,33 @@ h1.page-title {
 .plan ul { list-style: none; padding: 0; margin: 14px 0 0; font-size: 13px; color: var(--fg-1); }
 .plan li { padding: 6px 0; display: flex; align-items: center; gap: 8px; }
 .plan li::before { content: ""; width: 5px; height: 5px; border-radius: 50%; background: var(--accent); }
+
+/* launch promo band on /pricing */
+.promo-band {
+  display: flex; align-items: center; gap: 12px; justify-content: center;
+  max-width: 880px; margin: 0 auto;
+  padding: 10px 16px;
+  border: 1px solid var(--accent-line);
+  background: var(--accent-wash);
+  border-radius: var(--radius);
+  font-size: 13px; color: var(--fg-1);
+}
+.promo-band .mono { color: var(--accent); }
+
+/* sidebar upgrade pill — visible reminder for free users */
+.upgrade-pill {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  margin: 8px 6px 0;
+  padding: 10px 12px;
+  border: 1px solid var(--accent-line);
+  background: var(--accent-wash);
+  border-radius: 10px;
+  font-size: 12px; color: var(--fg-1);
+  text-decoration: none;
+}
+.upgrade-pill:hover { background: var(--accent-wash); border-color: var(--accent); }
+.upgrade-pill .label { font-weight: 500; }
+.upgrade-pill .cta { color: var(--accent); font-weight: 500; }
 
 /* audit log */
 .audit-row {

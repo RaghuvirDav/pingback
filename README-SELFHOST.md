@@ -123,6 +123,57 @@ Full details in [`docs/OPERATIONS.md`](docs/OPERATIONS.md).
 
 `setup-ec2.sh` installs an hourly SQLite backup cron for the `pingback` user (`deploy/backup-db.sh`). Backups land in `/opt/pingback/data/backups/`. If you want offsite copies, add an `aws s3 sync` step in that script or attach an S3 bucket via IAM role.
 
+## 9. Billing (optional — Stripe)
+
+Pingback ships a Free / Pro tier model wired to Stripe Checkout, the customer portal, and a signed webhook. The integration is **off by default** — leave the `STRIPE_*` env vars blank and Pingback runs as a single-tier free product.
+
+To turn it on you need a Stripe account and one recurring price for the Pro tier.
+
+Required env vars (in `/opt/pingback/.env`):
+
+| Variable                          | Where it comes from                                                                          |
+|-----------------------------------|----------------------------------------------------------------------------------------------|
+| `STRIPE_SECRET_KEY`               | Stripe Dashboard → Developers → API keys (starts with `sk_test_` or `sk_live_`)              |
+| `STRIPE_PUBLISHABLE_KEY`          | Same page (starts with `pk_test_` or `pk_live_`)                                             |
+| `STRIPE_WEBHOOK_SECRET`           | Dashboard → Developers → Webhooks → endpoint signing secret (starts with `whsec_`)           |
+| `STRIPE_PRICE_ID_PRO_MONTHLY`     | Dashboard → Products → Pro plan → recurring price id (starts with `price_`)                  |
+| `STRIPE_PRICE_ID_PRO_ANNUAL`      | Optional — second recurring price id if you offer annual billing                              |
+
+Webhook endpoint to register in Stripe (Developers → Webhooks → Add endpoint):
+
+- URL: `https://your-domain.com/api/stripe/webhook`
+- Events to send:
+  - `checkout.session.completed`
+  - `customer.subscription.created`
+  - `customer.subscription.updated`
+  - `customer.subscription.deleted`
+  - `invoice.payment_failed`
+
+After saving the endpoint, copy its signing secret into `STRIPE_WEBHOOK_SECRET` and `sudo systemctl restart pingback`.
+
+### What the plans actually enforce (server-side)
+
+| Limit              | Free                | Pro                          |
+|--------------------|---------------------|------------------------------|
+| Monitors           | 5                   | Unlimited                    |
+| Min check interval | 5 minutes (300s)    | 1 minute (60s)               |
+| History retention  | 7 days              | 90 days                      |
+
+Limits are enforced by the API and dashboard routes, not just the UI — a client cannot edit forms to cheat past them. See `pingback/services/plans.py` for the source of truth.
+
+### Test-mode walkthrough (recommended before going live)
+
+```bash
+# 1. Use Stripe test-mode keys in .env (sk_test_..., pk_test_..., whsec_...).
+# 2. Create a test recurring product in the Stripe Dashboard and copy the price id.
+# 3. Forward webhooks to your local server with the Stripe CLI:
+stripe listen --forward-to https://your-domain.com/api/stripe/webhook
+# 4. Sign up a user, click "Upgrade to Pro", complete Checkout with card 4242 4242 4242 4242.
+# 5. Verify the user.plan flipped to 'pro' in pingback.db, then cancel via the portal.
+```
+
+Webhook deliveries are idempotent by Stripe event id — Stripe's at-least-once retries are recorded in the `stripe_events` table and ignored on the second hit.
+
 ## Troubleshooting
 
 | Symptom                                      | Likely cause                                        | Fix                                                                 |

@@ -27,8 +27,8 @@
           <ul>
             <li>5 monitors</li>
             <li>5-minute intervals</li>
-            <li>Email alerts</li>
-            <li>Public status page</li>
+            <li>7-day history</li>
+            <li>Email alerts · public status page</li>
           </ul>
           {% if user.plan == 'free' %}
           <button class="btn btn-full" style="margin-top:16px" disabled>Current plan</button>
@@ -42,13 +42,13 @@
             <span class="mono small" style="color:var(--accent)">PRO{% if user.plan == 'pro' %} · CURRENT{% endif %}</span>
             {% if user.plan == 'pro' %}<span style="color:var(--accent)">{{ ic.i_check(14) }}</span>{% endif %}
           </div>
-          <div class="price">$9<span class="unit"> / mo</span></div>
+          <div class="price">$12<span class="unit"> / mo</span></div>
           <div class="muted small">For teams.</div>
           <ul>
-            <li>50 monitors</li>
+            <li>Unlimited monitors</li>
             <li>1-minute intervals</li>
-            <li>Priority alerts</li>
-            <li>Public status page</li>
+            <li>90-day history</li>
+            <li>Priority alerts · public status page</li>
           </ul>
           {% if user.plan == 'pro' %}
           <form method="post" action="/dashboard/billing/portal" style="margin:0">
@@ -75,25 +75,39 @@
         </div>
       </div>
 
-      {% if user.plan == 'pro' and subscription %}
+      {% if user.plan == 'pro' %}
       <div class="card">
         <h3 class="section-title">Current subscription</h3>
         <div class="grid-3">
           <div>
             <div class="k-label" style="font-size:11px;color:var(--fg-3);text-transform:uppercase;letter-spacing:0.08em">Status</div>
-            <div style="margin-top:6px"><span class="tag up">Active</span></div>
+            <div style="margin-top:6px">
+              {% if subscription and subscription.cancel_at_period_end %}
+                <span class="tag warn">Cancels at period end</span>
+              {% else %}
+                <span class="tag up">Active</span>
+              {% endif %}
+            </div>
           </div>
           <div>
-            <div class="k-label" style="font-size:11px;color:var(--fg-3);text-transform:uppercase;letter-spacing:0.08em">Renews</div>
+            <div class="k-label" style="font-size:11px;color:var(--fg-3);text-transform:uppercase;letter-spacing:0.08em">Next renewal</div>
             <div class="mono small" style="margin-top:6px">
-              {% if subscription.cancel_at_period_end %}cancels at period end
-              {% else %}period end {{ subscription.current_period_end | int }}{% endif %}
+              {% if user.plan_renews_at %}{{ user.plan_renews_at[:10] }}
+              {% else %}—{% endif %}
             </div>
           </div>
           <div>
             <div class="k-label" style="font-size:11px;color:var(--fg-3);text-transform:uppercase;letter-spacing:0.08em">Price</div>
-            <div class="mono small" style="margin-top:6px">$9.00 / mo</div>
+            <div class="mono small" style="margin-top:6px">$12.00 / mo</div>
           </div>
+        </div>
+        <div style="margin-top:18px;display:flex;gap:10px;flex-wrap:wrap">
+          <form method="post" action="/dashboard/billing/portal" style="margin:0">
+            <button class="btn btn-primary" type="submit">Manage billing</button>
+          </form>
+          <form method="post" action="/dashboard/billing/portal" style="margin:0">
+            <button class="btn btn-ghost" type="submit">Downgrade or cancel</button>
+          </form>
         </div>
       </div>
       {% endif %}

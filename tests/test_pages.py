@@ -73,3 +73,39 @@ def test_dashboard_has_role_main_and_aria_current(client):
 def test_landing_has_role_main(client):
     r = client.get("/")
     assert 'role="main"' in r.text
+
+
+def test_terms_page_renders(client):
+    r = client.get("/terms")
+    assert r.status_code == 200
+    assert "Terms of Service" in r.text
+    assert "20 April 2026" in r.text
+    assert "/static/app.css" in r.text
+
+
+def test_privacy_page_renders(client):
+    r = client.get("/privacy")
+    assert r.status_code == 200
+    assert "Privacy Policy" in r.text
+    assert "20 April 2026" in r.text
+
+
+def test_refund_page_renders(client):
+    r = client.get("/refund")
+    assert r.status_code == 200
+    assert "Refund Policy" in r.text
+    assert "7-day" in r.text
+
+
+def test_landing_footer_links_legal_pages(client):
+    r = client.get("/")
+    assert 'href="/terms"' in r.text
+    assert 'href="/privacy"' in r.text
+    assert 'href="/refund"' in r.text
+
+
+def test_pricing_footer_links_legal_pages(client):
+    r = client.get("/pricing")
+    assert 'href="/terms"' in r.text
+    assert 'href="/privacy"' in r.text
+    assert 'href="/refund"' in r.text

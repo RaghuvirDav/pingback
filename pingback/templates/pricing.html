@@ -1,0 +1,129 @@
+{% extends "base.html" %}
+{% import "_icons.html" as ic %}
+{% block title %}Pricing — Pingback{% endblock %}
+{% block body %}
+<div class="main landing" role="main">
+  {% include "nav.html" %}
+
+  <div class="hero" style="padding-top:60px">
+    <h1>Honest pricing.<br><em>No surprise invoices.</em></h1>
+    <p class="lead">Free for personal projects. Pay <strong>$12/mo</strong> when you outgrow it. Self-host the whole thing for nothing.</p>
+  </div>
+
+  <div class="promo-band" role="note">
+    <span class="mono small">LAUNCH25</span>
+    <span>25% off Pro for the first 3 months. Applied at checkout.</span>
+  </div>
+
+  <div class="billing-plan" style="max-width:880px;margin:24px auto 8px;grid-template-columns:1fr 1fr">
+    <div class="plan">
+      <div class="row" style="justify-content:space-between">
+        <span class="mono small muted">FREE</span>
+        {% if user and user.plan == 'free' %}<span class="mono small" style="color:var(--accent)">CURRENT</span>{% endif %}
+      </div>
+      <div class="price">$0<span class="unit"> / forever</span></div>
+      <div class="muted small">Personal sites. Side projects.</div>
+      <ul>
+        <li>5 monitors</li>
+        <li>5-minute check interval</li>
+        <li>7-day check history</li>
+        <li>Email alerts</li>
+        <li>Public status page</li>
+      </ul>
+      {% if user %}
+        {% if user.plan == 'free' %}
+        <button class="btn btn-full" style="margin-top:18px" disabled>Your current plan</button>
+        {% else %}
+        <a class="btn btn-full" href="/dashboard" style="margin-top:18px">Open dashboard</a>
+        {% endif %}
+      {% else %}
+      <a class="btn btn-full" href="/signup" style="margin-top:18px">Start free {{ ic.i_arrow_right(14) }}</a>
+      {% endif %}
+    </div>
+
+    <div class="plan {% if user and user.plan == 'pro' %}current{% endif %}">
+      <div class="row" style="justify-content:space-between">
+        <span class="mono small" style="color:var(--accent)">PRO{% if user and user.plan == 'pro' %} · CURRENT{% endif %}</span>
+        <span class="mono small muted">$120/yr saves ~2 months</span>
+      </div>
+      <div class="price">$12<span class="unit"> / mo</span></div>
+      <div class="muted small">Production services. Small teams.</div>
+      <ul>
+        <li>Unlimited monitors</li>
+        <li>60-second check interval</li>
+        <li>90-day check history</li>
+        <li>SSL certificate checks</li>
+        <li>Slack + webhook alerts</li>
+        <li>Status pages</li>
+      </ul>
+      {% if user %}
+        {% if user.plan == 'pro' %}
+        <form method="post" action="/dashboard/billing/portal" style="margin:18px 0 0">
+          <button class="btn btn-primary btn-full" type="submit">Manage subscription</button>
+        </form>
+        {% else %}
+        <form method="post" action="/dashboard/billing/checkout" style="margin:18px 0 0">
+          <button class="btn btn-primary btn-full" type="submit">Upgrade to Pro {{ ic.i_arrow_right(14) }}</button>
+        </form>
+        {% endif %}
+      {% else %}
+      <a class="btn btn-primary btn-full" href="/signup?upgrade=pro" style="margin-top:18px">Start Pro trial {{ ic.i_arrow_right(14) }}</a>
+      {% endif %}
+    </div>
+  </div>
+
+  <p class="muted small" style="text-align:center;margin:0 0 48px">
+    Prefer to self-host? Pingback is open source — <a href="https://github.com/RaghuvirDav/pingback">grab the repo</a> and run it on your own box for free.
+  </p>
+
+  <div class="features" id="faq">
+    <div class="features-head">
+      <h2>Common questions.</h2>
+      <p>If something's missing here, email hello@usepingback.com — we read everything.</p>
+    </div>
+    <div class="feature-grid">
+      {% for f in [
+        ('Can I cancel anytime?', 'Yes. Cancel from the billing portal in one click. You keep Pro until the end of your paid period, then drop to Free — no data loss.'),
+        ('Do I have to pay to self-host?', 'No. The full product is open source under MIT. Pro pricing covers the hosted version at usepingback.com.'),
+        ('Monthly or annual?', 'Both. Monthly is $12. Annual is $120 — about two months free. You can switch from the billing portal.'),
+        ('Refund policy?', '7-day no-questions refund on new Pro subscriptions, plus a 14-day cooling-off window for EU/UK customers. Full details at /refund.'),
+        ('What counts as a monitor?', 'One URL checked on a schedule. SSL checks on the same URL do not double-count.'),
+        ('How is data stored?', 'Encrypted at rest in SQLite. Free keeps 7 days of history; Pro keeps 90.'),
+      ] %}
+      <div class="feature">
+        <h3>{{ f[0] }}</h3>
+        <p>{{ f[1] }}</p>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="cta-strip">
+    <h2>Try it free.</h2>
+    <p>Five monitors, every five minutes, forever. Upgrade only when you need to.</p>
+    <div class="hero-cta">
+      <a class="btn btn-primary btn-lg" href="{% if user %}/dashboard{% else %}/signup{% endif %}">
+        {% if user %}Open dashboard{% else %}Start free{% endif %} {{ ic.i_arrow_right(14) }}
+      </a>
+      {% if not user or user.plan == 'free' %}
+      <a class="btn btn-lg" href="#faq">Read the FAQ</a>
+      {% endif %}
+    </div>
+  </div>
+
+  {% import "_brand.html" as brand %}
+  <div class="footer">
+    <span class="brand" style="padding:0">{{ brand.brand_logo(20) }}</span>
+    <span class="spacer"></span>
+    <a href="/terms">Terms</a>
+    <span>·</span>
+    <a href="/privacy">Privacy</a>
+    <span>·</span>
+    <a href="/refund">Refund</a>
+    <span>·</span>
+    <span>© 2026</span>
+    <span>·</span>
+    <span>Built with FastAPI + SQLite</span>
+  </div>
+</div>
+{% endblock %}

@@ -7,12 +7,15 @@
   <div class="centerpage">
     <div class="auth-card">
       <div class="auth-brand">{{ brand.brand_logo(28) }}</div>
-      <h1>Create your account</h1>
-      <div class="auth-sub">Start monitoring in under a minute.</div>
+      <h1>{% if upgrade == 'pro' %}Create your account, then upgrade{% else %}Create your account{% endif %}</h1>
+      <div class="auth-sub">{% if upgrade == 'pro' %}You'll land on the pricing page after signup so you can start Stripe Checkout.{% else %}Start monitoring in under a minute.{% endif %}</div>
 
       {% if error %}<div class="flash error">{{ error }}</div>{% endif %}
 
       <form method="post" action="/signup">
+        {% if upgrade == 'pro' %}
+        <input type="hidden" name="upgrade" value="pro">
+        {% endif %}
         <div class="field">
           <label for="email">Email</label>
           <input class="input" type="email" id="email" name="email" required autofocus
@@ -25,7 +28,7 @@
                  autocomplete="name"
                  value="{{ name or '' }}" placeholder="Jane Doe">
         </div>
-        <button class="btn btn-primary btn-full btn-lg" type="submit">Create account</button>
+        <button class="btn btn-primary btn-full btn-lg" type="submit">{% if upgrade == 'pro' %}Create account &amp; continue{% else %}Create account{% endif %}</button>
       </form>
 
       <div class="auth-foot">
