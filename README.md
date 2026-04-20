@@ -29,3 +29,7 @@ uvicorn pingback.main:app --reload
 pip install -r requirements.txt
 SENTRY_DSN="" pytest
 ```
+
+## License
+
+MIT — see [LICENSE](LICENSE).
