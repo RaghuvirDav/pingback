@@ -14,7 +14,7 @@
 set -euo pipefail
 
 : "${DOMAIN:?Set DOMAIN=<your-apex-domain> before running (e.g. example.com)}"
-: "${CERTBOT_EMAIL:?Set CERTBOT_EMAIL=<ops-contact> for Let's Encrypt notices}"
+: "${CERTBOT_EMAIL:?Set CERTBOT_EMAIL=<ops-contact> for Lets Encrypt expiry notices}"
 
 APP_DIR="${APP_DIR:-/opt/pingback}"
 WWW="www.${DOMAIN}"

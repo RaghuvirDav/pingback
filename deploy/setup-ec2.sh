@@ -9,15 +9,19 @@ APP_USER="pingback"
 
 echo "=== Pingback EC2 Setup ==="
 
-# Detect package manager
+# Detect package manager and install prerequisites.
+# App requires Python 3.10+ (PEP 604 union syntax). Amazon Linux 2023 ships 3.9
+# as default, so on dnf we install python3.11 explicitly. Ubuntu 22.04 ships
+# 3.10 which is fine.
+PY_BIN=""
 if command -v dnf &>/dev/null; then
-    PKG="dnf"
-    $PKG update -y
-    $PKG install -y python3 python3-pip python3-venv nginx certbot python3-certbot-nginx fail2ban git
+    dnf update -y
+    dnf install -y python3.11 python3.11-pip nginx certbot python3-certbot-nginx fail2ban git
+    PY_BIN="python3.11"
 elif command -v apt-get &>/dev/null; then
-    PKG="apt-get"
-    $PKG update -y
-    $PKG install -y python3 python3-pip python3-venv nginx certbot python3-certbot-nginx fail2ban git
+    apt-get update -y
+    apt-get install -y python3 python3-pip python3-venv nginx certbot python3-certbot-nginx fail2ban git
+    PY_BIN="python3"
 else
     echo "Unsupported package manager" && exit 1
 fi
@@ -40,9 +44,10 @@ else
 fi
 
 # Python virtual environment
-python3 -m venv "$APP_DIR/venv"
+"$PY_BIN" -m venv "$APP_DIR/venv"
 "$APP_DIR/venv/bin/pip" install --upgrade pip
 "$APP_DIR/venv/bin/pip" install -r "$APP_DIR/requirements.txt"
+chown -R "$APP_USER:$APP_USER" "$APP_DIR/venv"
 
 # Environment file
 if [ ! -f "$APP_DIR/.env" ]; then
@@ -61,17 +66,21 @@ cp "$APP_DIR/deploy/nginx-pingback-bootstrap.conf" /etc/nginx/conf.d/pingback.co
 # Remove default site if present
 rm -f /etc/nginx/sites-enabled/default /etc/nginx/conf.d/default.conf
 
-# Firewall (ufw for Ubuntu, firewalld for AL2023)
+# Host firewall (optional — AWS security groups gate ingress either way).
+# Skip silently if the daemon is not running on this AMI (AL2023 ships with
+# firewall-cmd installed but firewalld inactive).
 if command -v ufw &>/dev/null; then
     ufw allow 22/tcp
     ufw allow 80/tcp
     ufw allow 443/tcp
     ufw --force enable
-elif command -v firewall-cmd &>/dev/null; then
+elif command -v firewall-cmd &>/dev/null && systemctl is-active --quiet firewalld; then
     firewall-cmd --permanent --add-service=ssh
     firewall-cmd --permanent --add-service=http
     firewall-cmd --permanent --add-service=https
     firewall-cmd --reload
+else
+    echo ">>> no host firewall configured — relying on AWS security group"
 fi
 
 # Fail2ban

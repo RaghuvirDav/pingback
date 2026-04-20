@@ -1,6 +1,6 @@
 # Pingback — Self-Hosting Guide (v1.0)
 
-This guide walks you through deploying Pingback to your own AWS free-tier account on a t2.micro EC2 instance, with HTTPS, error tracking, and backups. Expected time: 30–45 minutes once DNS is ready.
+This guide walks you through deploying Pingback to your own AWS free-tier account on a `t3.micro` EC2 instance, with HTTPS, error tracking, and backups. Expected time: 30–45 minutes once DNS is ready.
 
 ## 0. What you need before you start
 
@@ -18,7 +18,7 @@ No specific AWS region is required. Examples below assume `us-east-1`; swap in w
 1. In the AWS Console → **EC2 → Launch instance**.
 2. Name: `pingback`.
 3. AMI: **Amazon Linux 2023** or **Ubuntu 22.04 LTS**.
-4. Instance type: `t2.micro` (free tier).
+4. Instance type: `t3.micro` (free tier on accounts created after July 2023; `t2.micro` is no longer free-tier eligible in new accounts).
 5. Key pair: create a new one; download the `.pem`.
 6. Network:
    - Security group: allow `22` (SSH, your IP), `80` (HTTP, anywhere), `443` (HTTPS, anywhere).
