@@ -98,6 +98,139 @@ Scoped to `arn:aws:logs:us-east-1:<account>:log-group:pingback:*` plus a
 blanket `logs:PutQueryDefinition`/`Describe*` on `*` (query definitions are
 account-scoped, not log-group-scoped).
 
+## CloudWatch alarms → SNS → board email (MAK-62)
+
+Five alarms publish to one SNS topic. The free tier covers 10 alarms; we use 5
+so there is headroom before we start paying. `deploy/cloudwatch-alarms.sh` is
+the source of truth — idempotent, safe to re-run.
+
+### SNS topic
+
+Name | Region | Purpose
+-----|--------|--------
+`pingback-alarms` | `us-east-1` | Fan-out for every Pingback CloudWatch alarm (ALARM and OK transitions).
+
+Subscribers are plain email (one per board member + the `pingback@…` shared
+mailbox). Each address must click the confirmation link AWS sends before it
+starts receiving alarms. List subscribers with:
+
+```
+aws sns list-subscriptions-by-topic \
+  --topic-arn arn:aws:sns:us-east-1:<account>:pingback-alarms \
+  --query 'Subscriptions[].[Protocol,Endpoint,SubscriptionArn]' --output table
+```
+
+### Alarms
+
+Name | Metric | Condition | Why
+-----|--------|-----------|----
+`Pingback/ErrorRateHigh` | `Pingback/Logs/ErrorCount` | `Sum > 5` over 5 min | Spike of app ERROR lines (fed by MAK-60 metric filter)
+`Pingback/SchedulerFailure` | `Pingback/Logs/SchedulerFailureCount` | `Sum >= 1` over 5 min | Any scheduler failure is worth a page
+`Pingback/HealthCheckMissing` | `AWS/EC2 StatusCheckFailed` | `Max >= 1` for 2 of 3 minutes | Host unreachable; UptimeRobot remains the canonical external up/down
+`Pingback/DiskSpaceLow` | `CWAgent disk_used_percent` (root fs) | `Avg > 80` over 5 min | SQLite DB + backups creep up over time
+`Pingback/CpuHigh` | `AWS/EC2 CPUUtilization` | `Avg > 80` for 10 min | Sustained saturation, not a spike
+
+`ErrorRateHigh` and `SchedulerFailure` use `treat-missing-data=notBreaching`
+so zero-traffic periods don't self-alarm. `HealthCheckMissing` uses
+`breaching` so a host that stops reporting status checks pages us.
+`DiskSpaceLow` uses `missing` so a CW-agent outage doesn't mask a real
+low-disk condition — verify the agent is running if it stays INSUFFICIENT_DATA.
+
+### CloudWatch agent (prereq for `DiskSpaceLow`)
+
+The two AWS/EC2 built-ins (CPU, StatusCheck) ship for free with every EC2
+instance. `disk_used_percent` requires the CloudWatch agent. Install once:
+
+```
+# Amazon Linux 2023
+sudo dnf install -y amazon-cloudwatch-agent
+
+# Ubuntu
+sudo apt-get install -y amazon-cloudwatch-agent
+```
+
+Drop this minimum config at
+`/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json`:
+
+```json
+{
+  "metrics": {
+    "append_dimensions": { "InstanceId": "${aws:InstanceId}" },
+    "metrics_collected": {
+      "disk": {
+        "measurement": ["used_percent"],
+        "resources": ["/"],
+        "metrics_collection_interval": 300
+      }
+    }
+  }
+}
+```
+
+Then:
+
+```
+sudo /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl \
+    -a fetch-config -m ec2 \
+    -c file:/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json \
+    -s
+```
+
+The instance role needs the managed policy
+`CloudWatchAgentServerPolicy` on top of the existing `logs:*` perms.
+
+If the root device/fstype on the host differs from the default
+(`xvda1` / `xfs`), export `PINGBACK_DISK_DEVICE` / `PINGBACK_DISK_FSTYPE`
+before running the alarms script. Confirm on the host with `df -T /`.
+
+### Running the alarms script
+
+```
+export PINGBACK_INSTANCE_ID=i-0abc123def4567890
+export ALERT_EMAILS="board@usepingback.com,pingback@usepingback.com"
+bash deploy/cloudwatch-alarms.sh
+```
+
+Verify the alarms landed:
+
+```
+aws cloudwatch describe-alarms --region us-east-1 \
+  --alarm-name-prefix Pingback/ \
+  --query 'MetricAlarms[].[AlarmName,StateValue]' --output table
+```
+
+Right after first run they will all be `INSUFFICIENT_DATA` — that's expected.
+Within 15 minutes CPU/StatusCheck transition to `OK`; ErrorRate/Scheduler
+stay `OK` as long as no matching log lines arrive; `DiskSpaceLow` transitions
+to `OK` as soon as the CW agent emits a data point.
+
+### IAM — minimum perms for the deployer running this script
+
+```
+sns:CreateTopic
+sns:Subscribe
+sns:ListSubscriptionsByTopic
+cloudwatch:PutMetricAlarm
+cloudwatch:DescribeAlarms
+```
+
+The EC2 instance role does NOT need these — they only belong to whoever runs
+`cloudwatch-alarms.sh` (board member from a laptop, or a CI deploy role).
+
+### End-to-end test (Acceptance for MAK-62)
+
+1. Confirm every subscriber clicked the AWS confirmation email. Unconfirmed
+   subs silently drop alarms.
+2. On a deployed host, enable the boom route and hammer it 6+ times in
+   under 5 minutes:
+   ```
+   DEBUG_BOOM_ENABLED=1 ./deploy/restart.sh
+   for i in $(seq 1 8); do curl -fsS https://<host>/debug/boom || true; done
+   ```
+3. Within ~2–3 minutes, `Pingback/ErrorRateHigh` transitions to `ALARM` and
+   every subscriber receives an email. Record the test in the MAK-62 ticket.
+4. Disable the route again: `DEBUG_BOOM_ENABLED= ./deploy/restart.sh`.
+
 ## Sentry error tracking (MAK-58)
 
 Sentry is wired into the FastAPI app behind the `SENTRY_DSN` env var. When the
