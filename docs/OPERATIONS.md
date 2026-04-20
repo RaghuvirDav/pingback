@@ -58,3 +58,79 @@ DEBUG_BOOM_ENABLED=  ./deploy/restart.sh
 
 Leave `DEBUG_BOOM_ENABLED` unset in normal prod — the route is gated at import
 time so an unset flag means the route is not even registered.
+
+## Uptime monitoring + public status page (MAK-59)
+
+External uptime verification via UptimeRobot's free tier. Confirms that the
+deployed app is reachable from outside AWS and gives us a free hosted status
+page to share with users.
+
+### Endpoint policy
+
+- The external monitor hits **`GET /health`** — defined in
+  `pingback/routes/health.py`. This must stay cheap: no DB calls, no external
+  fetches. A bloated health check is a self-inflicted DoS every 5 minutes.
+- If we ever want a richer "dependency health" view (DB ping, Sentry reachable,
+  etc.), expose it on a separate path like `/status` with its own monitor.
+  Do **not** overload `/health`.
+
+### Account setup (board / CEO)
+
+1. Sign up for UptimeRobot free tier at <https://uptimerobot.com/>. Use a
+   shared mailbox (preferred) so credentials survive staff changes.
+   Free tier gives 50 monitors at 5-min interval — plenty for us.
+2. Verify the email, then store the account credentials in the password manager
+   alongside the Sentry credentials.
+3. Add any board members who should receive alerts as **alert contacts**
+   (My Settings → Alert Contacts → Add). Email is fine for v1; we can wire
+   Slack/PagerDuty later if the volume justifies it.
+
+### Monitor configuration
+
+Create one HTTPS monitor:
+
+Field | Value
+-----|------
+Monitor Type | HTTPS
+Friendly Name | `pingback-prod-health`
+URL | `https://<prod-domain>/health`
+Monitoring Interval | 5 minutes
+Monitor Timeout | 30 seconds
+HTTP Method | GET
+Alert Contacts | all board contacts + `pingback@…` shared mailbox
+Keyword monitoring | *(optional)* — keyword = `"status":"ok"`
+
+### Public status page
+
+1. UptimeRobot dashboard → **Status Pages → Add New Status Page**.
+2. Name: `Pingback`. Select the `pingback-prod-health` monitor.
+3. Visibility: **Public**. Copy the generated URL
+   (`https://stats.uptimerobot.com/<id>`).
+4. Paste that URL into the MAK-59 ticket and into this doc below under
+   **"Live URLs"**.
+
+### Custom domain (post domain-purchase follow-up)
+
+Once the board's domain purchase lands, point a subdomain at the UptimeRobot
+status page:
+
+1. In UptimeRobot status page settings, add the custom domain
+   `status.<domain>`.
+2. Create a CNAME record: `status.<domain>` → `stats.uptimerobot.com`.
+3. Wait for DNS propagation, then verify in UptimeRobot.
+
+### Acceptance
+
+- UptimeRobot dashboard shows `pingback-prod-health` green for > 24 h.
+- Public status page URL is pasted into the MAK-59 ticket and into the
+  **Live URLs** table below.
+
+### Live URLs
+
+Populate these once the account is live.
+
+Name | URL
+-----|----
+UptimeRobot dashboard | *(board-only, keep in password manager)*
+Public status page | *pending*
+Custom status domain | *pending domain purchase*
