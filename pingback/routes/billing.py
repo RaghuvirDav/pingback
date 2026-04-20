@@ -126,21 +126,70 @@ async def stripe_webhook(request: Request):
     payload = await request.body()
     sig_header = request.headers.get("stripe-signature", "")
 
+    if not STRIPE_WEBHOOK_SECRET:
+        raise HTTPException(status_code=503, detail="Billing webhook is not configured")
+
     try:
         event = stripe.Webhook.construct_event(payload, sig_header, STRIPE_WEBHOOK_SECRET)
     except (ValueError, stripe.SignatureVerificationError):
         raise HTTPException(status_code=400, detail="Invalid webhook signature")
 
+    # Idempotency — Stripe delivers the same event id on retry.
+    if await _already_processed(event["id"]):
+        logger.info("Duplicate Stripe event %s (%s) ignored", event["id"], event["type"])
+        return {"received": True, "duplicate": True}
+
     handler = _WEBHOOK_HANDLERS.get(event["type"])
     if handler:
         await handler(event["data"]["object"])
 
+    await _record_event(event["id"], event["type"])
     return {"received": True}
+
+
+# ---------------------------------------------------------------------------
+# Idempotency helpers
+# ---------------------------------------------------------------------------
+
+async def _already_processed(event_id: str) -> bool:
+    db = await get_database()
+    async with db.execute(
+        "SELECT 1 FROM stripe_events WHERE id = ?", (event_id,)
+    ) as cur:
+        return (await cur.fetchone()) is not None
+
+
+async def _record_event(event_id: str, event_type: str) -> None:
+    db = await get_database()
+    now = datetime.now(timezone.utc).isoformat()
+    await db.execute(
+        "INSERT OR IGNORE INTO stripe_events (id, type, received_at) VALUES (?, ?, ?)",
+        (event_id, event_type, now),
+    )
+    await db.commit()
 
 
 # ---------------------------------------------------------------------------
 # Webhook event handlers
 # ---------------------------------------------------------------------------
+
+async def _handle_checkout_completed(session: dict) -> None:
+    """Checkout finished — claim the customer id for the local user before
+    the subscription.created event races in from a different cluster."""
+    customer_id = session.get("customer")
+    pingback_user_id = (session.get("metadata") or {}).get("pingback_user_id")
+    if not customer_id or not pingback_user_id:
+        return
+    db = await get_database()
+    now = datetime.now(timezone.utc).isoformat()
+    await db.execute(
+        """UPDATE users SET stripe_customer_id = ?, updated_at = ?
+           WHERE id = ? AND (stripe_customer_id IS NULL OR stripe_customer_id = ?)""",
+        (customer_id, now, pingback_user_id, customer_id),
+    )
+    await db.commit()
+    logger.info("Checkout completed for user %s (customer %s)", pingback_user_id, customer_id)
+
 
 async def _handle_subscription_created(sub: dict) -> None:
     await _sync_subscription(sub)
@@ -158,7 +207,8 @@ async def _handle_subscription_deleted(sub: dict) -> None:
     db = await get_database()
     now = datetime.now(timezone.utc).isoformat()
     await db.execute(
-        """UPDATE users SET plan = 'free', stripe_subscription_id = NULL, updated_at = ?
+        """UPDATE users SET plan = 'free', stripe_subscription_id = NULL,
+               plan_renews_at = NULL, updated_at = ?
            WHERE stripe_customer_id = ?""",
         (now, customer_id),
     )
@@ -167,9 +217,20 @@ async def _handle_subscription_deleted(sub: dict) -> None:
 
 
 async def _handle_payment_failed(invoice: dict) -> None:
-    """Log payment failure. Stripe handles dunning/retries automatically."""
+    """Log payment failure. Stripe handles dunning/retries automatically;
+    the subscription.updated event follows if the status changes."""
     customer_id = invoice.get("customer")
     logger.warning("Payment failed for customer %s (invoice %s)", customer_id, invoice.get("id"))
+
+
+def _renews_at_iso(sub: dict) -> str | None:
+    ts = sub.get("current_period_end")
+    if not ts:
+        return None
+    try:
+        return datetime.fromtimestamp(int(ts), tz=timezone.utc).isoformat()
+    except (TypeError, ValueError, OSError):
+        return None
 
 
 async def _sync_subscription(sub: dict) -> None:
@@ -182,16 +243,19 @@ async def _sync_subscription(sub: dict) -> None:
 
     db = await get_database()
     now = datetime.now(timezone.utc).isoformat()
+    renews_at = _renews_at_iso(sub)
 
     if status in ("active", "trialing"):
         await db.execute(
-            """UPDATE users SET plan = 'pro', stripe_subscription_id = ?, updated_at = ?
+            """UPDATE users SET plan = 'pro', stripe_subscription_id = ?,
+                   plan_renews_at = ?, updated_at = ?
                WHERE stripe_customer_id = ?""",
-            (sub_id, now, customer_id),
+            (sub_id, renews_at, now, customer_id),
         )
-    elif status in ("canceled", "unpaid", "past_due"):
+    elif status in ("canceled", "unpaid", "past_due", "incomplete_expired"):
         await db.execute(
-            """UPDATE users SET plan = 'free', stripe_subscription_id = NULL, updated_at = ?
+            """UPDATE users SET plan = 'free', stripe_subscription_id = NULL,
+                   plan_renews_at = NULL, updated_at = ?
                WHERE stripe_customer_id = ?""",
             (now, customer_id),
         )
@@ -201,6 +265,7 @@ async def _sync_subscription(sub: dict) -> None:
 
 
 _WEBHOOK_HANDLERS = {
+    "checkout.session.completed": _handle_checkout_completed,
     "customer.subscription.created": _handle_subscription_created,
     "customer.subscription.updated": _handle_subscription_updated,
     "customer.subscription.deleted": _handle_subscription_deleted,

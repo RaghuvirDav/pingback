@@ -13,18 +13,31 @@ DB_PATH = os.environ.get("DB_PATH", "pingback.db")
 DEFAULT_CHECK_INTERVAL = 300  # 5 minutes in seconds
 CHECK_TIMEOUT_SECONDS = 30
 MAX_MONITORS_FREE = 5
-MAX_MONITORS_PRO = 50
+MAX_MONITORS_PRO: int | None = None  # unlimited
 MAX_MONITORS_BUSINESS = 200
 
 # Check intervals per plan (seconds).
 CHECK_INTERVAL_FREE = 300      # 5 minutes
 CHECK_INTERVAL_PRO = 60        # 1 minute
 
+# Per-plan retention of historical check_results (days). Free keeps the last
+# week only; Pro keeps 90 days so trend panels have meaningful history.
+HISTORY_DAYS_FREE = 7
+HISTORY_DAYS_PRO = 90
+
 # Stripe billing configuration.
 STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY", "")
 STRIPE_PUBLISHABLE_KEY = os.environ.get("STRIPE_PUBLISHABLE_KEY", "")
 STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
-STRIPE_PRO_PRICE_ID = os.environ.get("STRIPE_PRO_PRICE_ID", "")
+# Preferred new names (MAK-82). STRIPE_PRO_PRICE_ID stays as a fallback so
+# hosts that configured the original single-price variable keep working.
+STRIPE_PRICE_ID_PRO_MONTHLY = (
+    os.environ.get("STRIPE_PRICE_ID_PRO_MONTHLY")
+    or os.environ.get("STRIPE_PRO_PRICE_ID", "")
+)
+STRIPE_PRICE_ID_PRO_ANNUAL = os.environ.get("STRIPE_PRICE_ID_PRO_ANNUAL", "")
+# Back-compat alias used by existing billing route.
+STRIPE_PRO_PRICE_ID = STRIPE_PRICE_ID_PRO_MONTHLY
 
 # Encryption key for sensitive fields (Fernet symmetric encryption).
 # Generate with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"

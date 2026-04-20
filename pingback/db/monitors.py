@@ -276,14 +276,49 @@ async def archive_abandoned_free_accounts(db: aiosqlite.Connection, inactivity_d
 
 
 async def purge_expired_check_results(db: aiosqlite.Connection, retention_days: int) -> int:
-    """Delete check_results older than retention_days. Returns the number of rows deleted."""
-    cutoff = (datetime.now(timezone.utc) - timedelta(days=retention_days)).isoformat()
-    cursor = await db.execute(
-        "DELETE FROM check_results WHERE checked_at < ?",
-        (cutoff,),
-    )
+    """Delete check_results older than each monitor-owner's plan retention.
+
+    `retention_days` is used as the fallback when a user has no known plan and
+    as the default for the Pro/Business tiers. Free-plan users keep a shorter
+    window defined by `HISTORY_DAYS_FREE`.
+    """
+    from pingback.services.plans import limits_for
+
+    now = datetime.now(timezone.utc)
+    total_deleted = 0
+
+    # Collect the distinct plans currently in use so a new plan added later
+    # is purged automatically via limits_for().
+    async with db.execute("SELECT DISTINCT COALESCE(plan, 'free') FROM users") as cur:
+        plans = [row[0] for row in await cur.fetchall()]
+    if not plans:
+        plans = ["free"]
+
+    for plan in plans:
+        days = limits_for(plan).history_days
+        # `retention_days` is the operator-configured ceiling; never keep data
+        # longer than it allows even if the plan default is higher.
+        effective = min(days, retention_days)
+        cutoff = (now - timedelta(days=effective)).isoformat()
+        cursor = await db.execute(
+            """DELETE FROM check_results
+                WHERE checked_at < ?
+                  AND monitor_id IN (
+                      SELECT m.id FROM monitors m
+                      JOIN users u ON u.id = m.user_id
+                      WHERE COALESCE(u.plan, 'free') = ?
+                  )""",
+            (cutoff, plan),
+        )
+        deleted = cursor.rowcount or 0
+        total_deleted += deleted
+        if deleted > 0:
+            logger.info(
+                "Purged %d check_results older than %d days for plan=%s",
+                deleted,
+                effective,
+                plan,
+            )
+
     await db.commit()
-    deleted = cursor.rowcount
-    if deleted > 0:
-        logger.info("Purged %d check_results older than %d days", deleted, retention_days)
-    return deleted
+    return total_deleted

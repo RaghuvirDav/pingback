@@ -32,6 +32,13 @@
     <span class="nav-icon">{{ ic.i_receipt(16) }}</span><span>Billing</span>
   </a>
 
+  {% if (user.plan or 'free') == 'free' %}
+  <a class="upgrade-pill" href="/pricing" data-testid="sidebar-upgrade">
+    <span class="label">Plan: Free</span>
+    <span class="cta">Upgrade →</span>
+  </a>
+  {% endif %}
+
   <div class="sidebar-foot">
     <div class="avatar">{{ (user.name or user.email or 'U')[0:2]|upper }}</div>
     <div class="user-meta grow">

@@ -2,6 +2,8 @@
 <div class="landing-nav">
   <a href="/" class="brand" style="padding:0">{{ brand.brand_logo(26) }}</a>
   <div class="spacer"></div>
+  <a href="/#features" class="btn btn-ghost">Features</a>
+  <a href="/pricing" class="btn btn-ghost">Pricing</a>
   {% if user %}
     <a href="/dashboard" class="btn btn-ghost">Dashboard</a>
     <form method="post" action="/logout" style="display:inline">

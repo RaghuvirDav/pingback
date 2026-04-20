@@ -11,7 +11,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
 from pingback.auth import _lookup_user, hash_api_key, hash_email
-from pingback.config import APP_BASE_URL, MAX_MONITORS_FREE, MAX_MONITORS_PRO, MAX_MONITORS_BUSINESS
+from pingback.config import APP_BASE_URL
 from pingback.db.connection import get_database
 from pingback.db.monitors import (
     count_user_monitors,
@@ -23,13 +23,12 @@ from pingback.db.monitors import (
     get_check_history,
     get_response_times,
 )
-
-_PLAN_LIMITS = {
-    "free": MAX_MONITORS_FREE,
-    "pro": MAX_MONITORS_PRO,
-    "business": MAX_MONITORS_BUSINESS,
-}
 from pingback.encryption import encrypt_value
+from pingback.services.plans import (
+    PlanLimitExceeded,
+    ensure_interval_allowed,
+    ensure_monitor_quota,
+)
 from pingback.session import clear_session, get_session_key, set_session
 
 _TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
@@ -70,6 +69,12 @@ async def landing(request: Request):
     return templates.TemplateResponse(request, "landing.html", {"user": user})
 
 
+@router.get("/pricing", response_class=HTMLResponse)
+async def pricing(request: Request):
+    user = await _get_ui_user(request)
+    return templates.TemplateResponse(request, "pricing.html", {"user": user})
+
+
 # ---------------------------------------------------------------------------
 # Auth pages
 # ---------------------------------------------------------------------------
@@ -99,15 +104,24 @@ async def login_submit(request: Request, api_key: str = Form(...)):
 @router.get("/signup", response_class=HTMLResponse)
 async def signup_page(request: Request):
     user = await _get_ui_user(request)
+    upgrade = request.query_params.get("upgrade", "")
     if user:
+        if upgrade == "pro" and user.get("plan") == "free":
+            return _redirect("/pricing")
         return _redirect("/dashboard")
     return templates.TemplateResponse(
-        request, "signup.html", {"user": None, "error": None, "email": "", "name": ""}
+        request, "signup.html",
+        {"user": None, "error": None, "email": "", "name": "", "upgrade": upgrade},
     )
 
 
 @router.post("/signup", response_class=HTMLResponse)
-async def signup_submit(request: Request, email: str = Form(...), name: str = Form("")):
+async def signup_submit(
+    request: Request,
+    email: str = Form(...),
+    name: str = Form(""),
+    upgrade: str = Form(""),
+):
     db = await get_database()
 
     # Dedup by deterministic email hash — Fernet encryption is non-deterministic
@@ -119,7 +133,13 @@ async def signup_submit(request: Request, email: str = Form(...), name: str = Fo
         if await cur.fetchone():
             return templates.TemplateResponse(
                 request, "signup.html",
-                {"user": None, "error": "An account with that email already exists.", "email": email, "name": name},
+                {
+                    "user": None,
+                    "error": "An account with that email already exists.",
+                    "email": email,
+                    "name": name,
+                    "upgrade": upgrade,
+                },
                 status_code=409,
             )
 
@@ -142,7 +162,8 @@ async def signup_submit(request: Request, email: str = Form(...), name: str = Fo
     )
     await db.commit()
 
-    response = _redirect("/dashboard?welcome=1")
+    landing = "/pricing?signed_up=1" if upgrade == "pro" else "/dashboard?welcome=1"
+    response = _redirect(landing)
     set_session(response, api_key)
     return response
 
@@ -282,12 +303,15 @@ async def new_monitor_submit(
         return _redirect("/login")
     db = await get_database()
 
-    current_count = await count_user_monitors(db, user["id"])
-    limit = _PLAN_LIMITS.get(user.get("plan", "free"), MAX_MONITORS_FREE)
-    if current_count >= limit:
+    plan = user.get("plan", "free")
+    try:
+        ensure_monitor_quota(plan, await count_user_monitors(db, user["id"]))
+        ensure_interval_allowed(plan, interval_seconds)
+    except PlanLimitExceeded as exc:
         return templates.TemplateResponse(request, "monitor_form.html", {
             "user": user, "monitor": None,
-            "error": f"You've reached your plan limit of {limit} monitors. Upgrade to add more.",
+            "error": exc.message,
+            "upgrade_required": plan == "free",
             "name": name, "url": url,
         }, status_code=403)
 
@@ -325,6 +349,15 @@ async def edit_monitor_submit(
     monitor = await find_monitor_by_id(db, monitor_id)
     if monitor is None or monitor.user_id != user["id"]:
         raise HTTPException(status_code=404, detail="Monitor not found")
+    plan = user.get("plan", "free")
+    try:
+        ensure_interval_allowed(plan, interval_seconds)
+    except PlanLimitExceeded as exc:
+        return templates.TemplateResponse(request, "monitor_form.html", {
+            "user": user, "monitor": monitor,
+            "error": exc.message,
+            "upgrade_required": plan == "free",
+        }, status_code=403)
     now = datetime.now(timezone.utc).isoformat()
     await db.execute(
         """UPDATE monitors SET name = ?, url = ?, interval_seconds = ?, is_public = ?, updated_at = ?
