@@ -12,7 +12,12 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from pingback.config import HOST, PORT
 from pingback.db.connection import close_database, get_database
-from pingback.middleware import AuditLogMiddleware, HTTPSRedirectMiddleware
+from pingback.logging_config import configure_logging
+from pingback.middleware import (
+    AuditLogMiddleware,
+    HTTPSRedirectMiddleware,
+    RequestContextMiddleware,
+)
 from pingback.routes.audit import router as audit_router
 from pingback.routes.billing import router as billing_router
 from pingback.routes.checks import router as checks_router
@@ -23,7 +28,7 @@ from pingback.routes.monitors import router as monitors_router
 from pingback.routes.users import router as users_router
 from pingback.services.scheduler import start_scheduler, stop_scheduler
 
-logging.basicConfig(level=logging.INFO)
+configure_logging()
 logger = logging.getLogger("pingback")
 
 
@@ -58,8 +63,17 @@ async def not_found_handler(request: Request, exc: StarletteHTTPException):
     )
 
 
-@app.exception_handler(500)
-async def server_error_handler(request: Request, exc: Exception):
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    logger.exception(
+        "unhandled_exception",
+        extra={
+            "request_id": getattr(request.state, "request_id", None),
+            "path": request.url.path,
+            "method": request.method,
+            "exception_type": exc.__class__.__name__,
+        },
+    )
     return _templates.TemplateResponse(
         request, "500.html", status_code=500
     )
@@ -67,6 +81,7 @@ async def server_error_handler(request: Request, exc: Exception):
 
 app.add_middleware(AuditLogMiddleware)
 app.add_middleware(HTTPSRedirectMiddleware)
+app.add_middleware(RequestContextMiddleware)
 app.include_router(health_router)
 app.include_router(monitors_router)
 app.include_router(checks_router)
@@ -78,4 +93,10 @@ app.include_router(dashboard_router)
 
 
 if __name__ == "__main__":
-    uvicorn.run("pingback.main:app", host=HOST, port=PORT, reload=True)
+    uvicorn.run(
+        "pingback.main:app",
+        host=HOST,
+        port=PORT,
+        reload=True,
+        log_config=None,
+    )
