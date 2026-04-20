@@ -13,3 +13,7 @@ dist/
 *.egg-info/
 PingBack.zip
 .pytest_cache/
+*.pem
+.ssh/
+pingback_accessKeys.csv
+
