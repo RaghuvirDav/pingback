@@ -8,7 +8,7 @@ import resend
 
 from pingback.config import (
     APP_BASE_URL,
-    EMAIL_FROM_DIGEST,
+    EMAIL_FROM_DAILY_STATUS,
     EMAIL_FROM_NOREPLY,
     RESEND_API_KEY,
 )
@@ -188,7 +188,7 @@ async def send_daily_digests(current_hour_utc: int) -> int:
             date_str = datetime.now(timezone.utc).strftime("%b %d")
 
             resend.Emails.send({
-                "from": EMAIL_FROM_DIGEST,
+                "from": EMAIL_FROM_DAILY_STATUS,
                 "to": [user["email"]],
                 "subject": f"Pingback Digest — {stats['overall_uptime_pct']}% uptime — {date_str}",
                 "html": html,
