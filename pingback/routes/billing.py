@@ -1,32 +1,38 @@
-"""Stripe billing routes: checkout, webhooks, and billing settings page."""
+"""Paddle billing routes: settings page, webhook, portal redirect.
+
+Paddle uses a client-side overlay checkout (Paddle.js `Checkout.open()`) —
+there is no server-side `checkout.session.create` equivalent. The backend's
+only jobs are to verify signed webhooks, keep the users row in sync with
+subscription state, and redirect the customer into Paddle's managed portal
+when they want to cancel or update payment.
+"""
 from __future__ import annotations
 
+import hmac
 import json
 import logging
 from datetime import datetime, timezone
+from hashlib import sha256
 from pathlib import Path
 
-import stripe
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
 from pingback.config import (
     APP_BASE_URL,
-    STRIPE_PRO_PRICE_ID,
-    STRIPE_SECRET_KEY,
-    STRIPE_WEBHOOK_SECRET,
+    PADDLE_NOTIFICATION_SECRET,
+    paddle_template_context,
 )
 from pingback.db.connection import get_database
 from pingback.routes.dashboard import _get_ui_user, _redirect
+from pingback.services.plans import sync_from_paddle_event
 
 _TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
 templates = Jinja2Templates(directory=str(_TEMPLATES_DIR))
 
 router = APIRouter()
 logger = logging.getLogger("pingback.billing")
-
-stripe.api_key = STRIPE_SECRET_KEY
 
 
 # ---------------------------------------------------------------------------
@@ -39,109 +45,58 @@ async def billing_page(request: Request):
     if user is None:
         return _redirect("/login")
 
-    subscription = None
-    if user.get("stripe_subscription_id") and STRIPE_SECRET_KEY:
-        try:
-            subscription = stripe.Subscription.retrieve(user["stripe_subscription_id"])
-        except stripe.StripeError:
-            pass
-
     return templates.TemplateResponse(request, "billing.html", {
         "user": user,
-        "subscription": subscription,
+        **paddle_template_context(),
+        "checkout_success_url": f"{APP_BASE_URL}/dashboard/billing?success=Welcome+to+Pro!",
         "success": request.query_params.get("success"),
         "error": request.query_params.get("error"),
     })
 
 
 # ---------------------------------------------------------------------------
-# Stripe Checkout — upgrade to Pro
+# Customer portal — redirect to Paddle's per-subscription portal URL.
+#
+# Paddle returns `customer_portal_url` on subscription creation; we cache it
+# on the user row in the webhook handler, then 302 here on demand. This
+# replaces Stripe's `billing_portal.Session.create` server call.
 # ---------------------------------------------------------------------------
 
-@router.post("/dashboard/billing/checkout")
-async def create_checkout_session(request: Request):
+@router.get("/dashboard/billing/portal")
+async def billing_portal(request: Request):
     user = await _get_ui_user(request)
     if user is None:
         return _redirect("/login")
-
-    if not STRIPE_SECRET_KEY or not STRIPE_PRO_PRICE_ID:
-        return _redirect("/dashboard/billing?error=Billing+is+not+configured")
-
-    if user.get("plan") == "pro":
-        return _redirect("/dashboard/billing?error=You+are+already+on+the+Pro+plan")
 
     db = await get_database()
-
-    # Reuse or create Stripe customer
-    customer_id = user.get("stripe_customer_id")
-    if not customer_id:
-        customer = stripe.Customer.create(
-            metadata={"pingback_user_id": user["id"]},
-        )
-        customer_id = customer.id
-        now = datetime.now(timezone.utc).isoformat()
-        await db.execute(
-            "UPDATE users SET stripe_customer_id = ?, updated_at = ? WHERE id = ?",
-            (customer_id, now, user["id"]),
-        )
-        await db.commit()
-
-    session = stripe.checkout.Session.create(
-        customer=customer_id,
-        mode="subscription",
-        line_items=[{"price": STRIPE_PRO_PRICE_ID, "quantity": 1}],
-        success_url=f"{APP_BASE_URL}/dashboard/billing?success=Welcome+to+Pro!",
-        cancel_url=f"{APP_BASE_URL}/dashboard/billing",
-        metadata={"pingback_user_id": user["id"]},
-    )
-    return RedirectResponse(url=session.url, status_code=303)
-
-
-# ---------------------------------------------------------------------------
-# Customer portal — manage/cancel subscription
-# ---------------------------------------------------------------------------
-
-@router.post("/dashboard/billing/portal")
-async def create_portal_session(request: Request):
-    user = await _get_ui_user(request)
-    if user is None:
-        return _redirect("/login")
-
-    customer_id = user.get("stripe_customer_id")
-    if not customer_id:
+    async with db.execute(
+        "SELECT paddle_portal_url FROM users WHERE id = ?", (user["id"],)
+    ) as cur:
+        row = await cur.fetchone()
+    portal_url = row["paddle_portal_url"] if row else None
+    if not portal_url:
         return _redirect("/dashboard/billing?error=No+billing+account+found")
-
-    session = stripe.billing_portal.Session.create(
-        customer=customer_id,
-        return_url=f"{APP_BASE_URL}/dashboard/billing",
-    )
-    return RedirectResponse(url=session.url, status_code=303)
+    return RedirectResponse(url=portal_url, status_code=303)
 
 
 # ---------------------------------------------------------------------------
-# Stripe webhook handler
+# Paddle webhook handler
 # ---------------------------------------------------------------------------
 
-@router.post("/api/stripe/webhook")
-async def stripe_webhook(request: Request):
+@router.post("/api/paddle/webhook")
+async def paddle_webhook(request: Request):
     payload = await request.body()
-    sig_header = request.headers.get("stripe-signature", "")
+    sig_header = request.headers.get("paddle-signature", "")
 
-    if not STRIPE_WEBHOOK_SECRET:
+    if not PADDLE_NOTIFICATION_SECRET:
         raise HTTPException(status_code=503, detail="Billing webhook is not configured")
 
-    # Verify the signature against the raw payload (the exact bytes Stripe
-    # signed — never the re-serialized JSON). Stripe's helper expects a str
-    # since it concatenates with the timestamp via %s.
     try:
         payload_str = payload.decode("utf-8")
     except UnicodeDecodeError:
         raise HTTPException(status_code=400, detail="Invalid webhook payload")
-    try:
-        stripe.WebhookSignature.verify_header(payload_str, sig_header, STRIPE_WEBHOOK_SECRET)
-    except stripe.SignatureVerificationError:
-        raise HTTPException(status_code=400, detail="Invalid webhook signature")
-    except Exception:
+
+    if not _verify_paddle_signature(payload_str, sig_header, PADDLE_NOTIFICATION_SECRET):
         raise HTTPException(status_code=400, detail="Invalid webhook signature")
 
     try:
@@ -149,145 +104,92 @@ async def stripe_webhook(request: Request):
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid webhook payload")
 
-    event_id = event.get("id")
-    event_type = event.get("type", "")
+    event_id = event.get("event_id")
+    event_type = event.get("event_type", "")
     if not event_id:
-        raise HTTPException(status_code=400, detail="Webhook event missing id")
+        raise HTTPException(status_code=400, detail="Webhook event missing event_id")
 
-    # Idempotency — Stripe delivers the same event id on retry.
-    if await _already_processed(event_id):
-        logger.info("Duplicate Stripe event %s (%s) ignored", event_id, event_type)
+    # INSERT OR IGNORE + rowcount check gives us atomic "first-time or duplicate"
+    # detection in one round-trip. Paddle retries use the same event_id so a
+    # second delivery hits the ignore path and returns without running handlers.
+    if not await _claim_event(event_id, event_type):
+        logger.info("Duplicate Paddle event %s (%s) ignored", event_id, event_type)
         return {"received": True, "duplicate": True}
 
     handler = _WEBHOOK_HANDLERS.get(event_type)
     if handler:
-        await handler(event.get("data", {}).get("object", {}))
+        await handler(event.get("data") or {})
 
-    await _record_event(event_id, event_type)
     return {"received": True}
+
+
+# ---------------------------------------------------------------------------
+# Signature verification
+#
+# Paddle signs the raw request body with HMAC-SHA256. Header shape:
+#   Paddle-Signature: ts=<unix-ts>;h1=<hex-digest>
+# The signed payload is literally `"<ts>:<body>"`. We split the header, rebuild
+# the signed string, and do a constant-time compare against the provided h1.
+# ---------------------------------------------------------------------------
+
+def _verify_paddle_signature(payload: str, header: str, secret: str) -> bool:
+    if not header:
+        return False
+    parts = {}
+    for kv in header.split(";"):
+        if "=" not in kv:
+            continue
+        k, v = kv.split("=", 1)
+        parts[k.strip()] = v.strip()
+    ts = parts.get("ts")
+    h1 = parts.get("h1")
+    if not ts or not h1:
+        return False
+    signed = f"{ts}:{payload}".encode()
+    expected = hmac.new(secret.encode(), signed, sha256).hexdigest()
+    return hmac.compare_digest(expected, h1)
 
 
 # ---------------------------------------------------------------------------
 # Idempotency helpers
 # ---------------------------------------------------------------------------
 
-async def _already_processed(event_id: str) -> bool:
-    db = await get_database()
-    async with db.execute(
-        "SELECT 1 FROM stripe_events WHERE id = ?", (event_id,)
-    ) as cur:
-        return (await cur.fetchone()) is not None
-
-
-async def _record_event(event_id: str, event_type: str) -> None:
+async def _claim_event(event_id: str, event_type: str) -> bool:
+    """Return True if this event_id is new (and was just recorded), False if
+    it's a retry of an already-processed delivery."""
     db = await get_database()
     now = datetime.now(timezone.utc).isoformat()
-    await db.execute(
-        "INSERT OR IGNORE INTO stripe_events (id, type, received_at) VALUES (?, ?, ?)",
+    cursor = await db.execute(
+        "INSERT OR IGNORE INTO paddle_events (id, type, received_at) VALUES (?, ?, ?)",
         (event_id, event_type, now),
     )
     await db.commit()
+    return cursor.rowcount > 0
 
 
 # ---------------------------------------------------------------------------
 # Webhook event handlers
+#
+# All subscription events route through `sync_from_paddle_event`, which is
+# the single source of truth for mapping Paddle state → the local users row.
+# `subscription.past_due` intentionally does NOT downgrade — Paddle retries
+# the payment; we only flip to free on `subscription.canceled` (which fires
+# after Paddle gives up or at period end).
+# `transaction.payment_failed` is log-only — the follow-up `subscription.*`
+# event is what actually changes plan state.
 # ---------------------------------------------------------------------------
 
-async def _handle_checkout_completed(session: dict) -> None:
-    """Checkout finished — claim the customer id for the local user before
-    the subscription.created event races in from a different cluster."""
-    customer_id = session.get("customer")
-    pingback_user_id = (session.get("metadata") or {}).get("pingback_user_id")
-    if not customer_id or not pingback_user_id:
-        return
-    db = await get_database()
-    now = datetime.now(timezone.utc).isoformat()
-    await db.execute(
-        """UPDATE users SET stripe_customer_id = ?, updated_at = ?
-           WHERE id = ? AND (stripe_customer_id IS NULL OR stripe_customer_id = ?)""",
-        (customer_id, now, pingback_user_id, customer_id),
+async def _log_payment_failed(data: dict) -> None:
+    logger.warning(
+        "Paddle payment failed for customer %s (transaction %s)",
+        data.get("customer_id"), data.get("id"),
     )
-    await db.commit()
-    logger.info("Checkout completed for user %s (customer %s)", pingback_user_id, customer_id)
-
-
-async def _handle_subscription_created(sub: dict) -> None:
-    await _sync_subscription(sub)
-
-
-async def _handle_subscription_updated(sub: dict) -> None:
-    await _sync_subscription(sub)
-
-
-async def _handle_subscription_deleted(sub: dict) -> None:
-    """Subscription cancelled — downgrade user to free."""
-    customer_id = sub.get("customer")
-    if not customer_id:
-        return
-    db = await get_database()
-    now = datetime.now(timezone.utc).isoformat()
-    await db.execute(
-        """UPDATE users SET plan = 'free', stripe_subscription_id = NULL,
-               plan_renews_at = NULL, updated_at = ?
-           WHERE stripe_customer_id = ?""",
-        (now, customer_id),
-    )
-    await db.commit()
-    logger.info("Subscription deleted for customer %s — downgraded to free", customer_id)
-
-
-async def _handle_payment_failed(invoice: dict) -> None:
-    """Log payment failure. Stripe handles dunning/retries automatically;
-    the subscription.updated event follows if the status changes."""
-    customer_id = invoice.get("customer")
-    logger.warning("Payment failed for customer %s (invoice %s)", customer_id, invoice.get("id"))
-
-
-def _renews_at_iso(sub: dict) -> str | None:
-    ts = sub.get("current_period_end")
-    if not ts:
-        return None
-    try:
-        return datetime.fromtimestamp(int(ts), tz=timezone.utc).isoformat()
-    except (TypeError, ValueError, OSError):
-        return None
-
-
-async def _sync_subscription(sub: dict) -> None:
-    """Sync subscription state to the users table."""
-    customer_id = sub.get("customer")
-    sub_id = sub.get("id")
-    status = sub.get("status")
-    if not customer_id:
-        return
-
-    db = await get_database()
-    now = datetime.now(timezone.utc).isoformat()
-    renews_at = _renews_at_iso(sub)
-
-    if status in ("active", "trialing"):
-        await db.execute(
-            """UPDATE users SET plan = 'pro', stripe_subscription_id = ?,
-                   plan_renews_at = ?, updated_at = ?
-               WHERE stripe_customer_id = ?""",
-            (sub_id, renews_at, now, customer_id),
-        )
-    elif status in ("canceled", "unpaid", "past_due", "incomplete_expired"):
-        await db.execute(
-            """UPDATE users SET plan = 'free', stripe_subscription_id = NULL,
-                   plan_renews_at = NULL, updated_at = ?
-               WHERE stripe_customer_id = ?""",
-            (now, customer_id),
-        )
-
-    await db.commit()
-    logger.info("Synced subscription %s (status=%s) for customer %s", sub_id, status, customer_id)
 
 
 _WEBHOOK_HANDLERS = {
-    "checkout.session.completed": _handle_checkout_completed,
-    "customer.subscription.created": _handle_subscription_created,
-    "customer.subscription.updated": _handle_subscription_updated,
-    "customer.subscription.deleted": _handle_subscription_deleted,
-    "invoice.payment_failed": _handle_payment_failed,
+    "transaction.payment_failed": _log_payment_failed,
+    "subscription.created": sync_from_paddle_event,
+    "subscription.updated": sync_from_paddle_event,
+    "subscription.canceled": sync_from_paddle_event,
+    "subscription.past_due": sync_from_paddle_event,
 }

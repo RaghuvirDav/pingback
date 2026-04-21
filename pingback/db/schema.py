@@ -90,11 +90,18 @@ MIGRATIONS = [
     # prevent duplicate signups).
     """ALTER TABLE users ADD COLUMN email_hash TEXT""",
     """CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_hash ON users(email_hash)""",
-    # Stripe subscription renewal timestamp (ISO 8601 UTC).
+    # Subscription renewal timestamp (ISO 8601 UTC) — provider-agnostic.
     """ALTER TABLE users ADD COLUMN plan_renews_at TEXT""",
-    # Idempotency log for Stripe webhook events. Retries deliver the same
-    # event id, so we record each processed id and reject duplicates.
-    """CREATE TABLE IF NOT EXISTS stripe_events (
+    # Paddle billing integration (MAK-97). Replaces the never-activated Stripe
+    # scaffold from MAK-82. Paddle returns a per-subscription `customer_portal_url`
+    # on creation — cache it on the user row so GET /dashboard/billing/portal
+    # can 302 straight to it without hitting the Paddle API on every click.
+    """ALTER TABLE users ADD COLUMN paddle_customer_id TEXT""",
+    """ALTER TABLE users ADD COLUMN paddle_subscription_id TEXT""",
+    """ALTER TABLE users ADD COLUMN paddle_portal_url TEXT""",
+    # Idempotency log for Paddle webhook events. Paddle retries deliver the
+    # same event_id, so we record each processed id and reject duplicates.
+    """CREATE TABLE IF NOT EXISTS paddle_events (
         id TEXT PRIMARY KEY,
         type TEXT NOT NULL,
         received_at TEXT NOT NULL DEFAULT (datetime('now'))

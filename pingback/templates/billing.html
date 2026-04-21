@@ -51,13 +51,13 @@
             <li>Priority alerts · public status page</li>
           </ul>
           {% if user.plan == 'pro' %}
-          <form method="post" action="/dashboard/billing/portal" style="margin:0">
-            <button class="btn btn-primary btn-full" style="margin-top:16px" type="submit">Manage subscription</button>
-          </form>
+          <a class="btn btn-primary btn-full" style="margin-top:16px" href="/dashboard/billing/portal">Manage subscription</a>
           {% else %}
-          <form method="post" action="/dashboard/billing/checkout" style="margin:0">
-            <button class="btn btn-primary btn-full" style="margin-top:16px" type="submit">Upgrade to Pro</button>
-          </form>
+          <button class="btn btn-primary btn-full" style="margin-top:16px" type="button"
+                  id="upgrade-pro"
+                  {% if not paddle_client_side_token or not paddle_price_id_pro_monthly %}disabled title="Billing not configured"{% endif %}>
+            Upgrade to Pro
+          </button>
           {% endif %}
         </div>
 
@@ -102,12 +102,8 @@
           </div>
         </div>
         <div style="margin-top:18px;display:flex;gap:10px;flex-wrap:wrap">
-          <form method="post" action="/dashboard/billing/portal" style="margin:0">
-            <button class="btn btn-primary" type="submit">Manage billing</button>
-          </form>
-          <form method="post" action="/dashboard/billing/portal" style="margin:0">
-            <button class="btn btn-ghost" type="submit">Downgrade or cancel</button>
-          </form>
+          <a class="btn btn-primary" href="/dashboard/billing/portal">Manage billing</a>
+          <a class="btn btn-ghost" href="/dashboard/billing/portal">Downgrade or cancel</a>
         </div>
       </div>
       {% endif %}
@@ -115,4 +111,8 @@
     </div>
   </div>
 </div>
+
+{% with paddle_button_id='upgrade-pro', paddle_success_url=checkout_success_url %}
+  {% include '_paddle_checkout.html' %}
+{% endwith %}
 {% endblock %}

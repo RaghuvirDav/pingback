@@ -22,7 +22,9 @@ def app_ctx(monkeypatch, tmp_path):
     monkeypatch.setenv("APP_ENV", "development")
     monkeypatch.setenv("ENCRYPTION_KEY", Fernet.generate_key().decode())
     monkeypatch.setenv("APP_BASE_URL", "http://localhost:8000")
-    monkeypatch.setenv("STRIPE_SECRET_KEY", "")
+    monkeypatch.setenv("PADDLE_CLIENT_SIDE_TOKEN", "")
+    monkeypatch.setenv("PADDLE_NOTIFICATION_SECRET", "")
+    monkeypatch.setenv("PADDLE_PRICE_ID_PRO_MONTHLY", "")
     monkeypatch.setenv("RESEND_API_KEY", "")
 
     # Force re-import so module-level config picks up fresh env vars.

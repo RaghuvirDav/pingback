@@ -25,11 +25,12 @@ def test_pricing_page_renders_for_guest(client):
     assert 'href="/signup"' in r.text
 
 
-def test_pricing_for_authed_free_user_posts_to_checkout(auth_client):
+def test_pricing_for_authed_free_user_shows_paddle_upgrade(auth_client):
     r = auth_client.get("/pricing")
     assert r.status_code == 200
-    # Authed free user sees a POST checkout form, not the guest signup link
-    assert 'action="/dashboard/billing/checkout"' in r.text
+    # Authed free user sees the Paddle overlay trigger (disabled until creds land),
+    # not the guest signup CTA.
+    assert 'id="pricing-upgrade-pro"' in r.text
     assert "Upgrade to Pro" in r.text
     assert 'href="/signup?upgrade=pro"' not in r.text
 

@@ -1,0 +1,25 @@
+{# Paddle.js overlay trigger — include on any page with an upgrade button.
+   Callers must set:
+     paddle_button_id           — DOM id of the <button> that opens checkout
+     paddle_client_side_token   — Paddle public token (required to initialize)
+     paddle_price_id_pro_monthly — price id passed into items[]
+   Optional:
+     paddle_success_url         — settings.successUrl on checkout.open
+   And the page must have `user` in scope (we pass email + id into customData).
+   The include no-ops when creds are missing — the button is already rendered
+   as `disabled` by the page. #}
+{% if paddle_client_side_token and paddle_price_id_pro_monthly and user and user.plan != 'pro' %}
+<script src="https://cdn.paddle.com/paddle/v2/paddle.js"></script>
+<script>
+  Paddle.Environment.set({{ paddle_env|tojson }});
+  Paddle.Initialize({ token: {{ paddle_client_side_token|tojson }} });
+  document.getElementById({{ paddle_button_id|tojson }}).addEventListener('click', function () {
+    Paddle.Checkout.open({
+      items: [{ priceId: {{ paddle_price_id_pro_monthly|tojson }}, quantity: 1 }],
+      customer: { email: {{ user.email|tojson }} },
+      customData: { user_id: {{ user.id|tojson }} }{% if paddle_success_url %},
+      settings: { successUrl: {{ paddle_success_url|tojson }} }{% endif %}
+    });
+  });
+</script>
+{% endif %}

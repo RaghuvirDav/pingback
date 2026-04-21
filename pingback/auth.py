@@ -32,16 +32,20 @@ async def _lookup_user(token: str) -> dict | None:
     """Look up a user by API key. Tries api_key_hash first, falls back to plaintext column."""
     db = await get_database()
     token_hash = hash_api_key(token)
+    cols = (
+        "id, email, name, plan, "
+        "paddle_customer_id, paddle_subscription_id, plan_renews_at"
+    )
     # Primary lookup via hash column (encrypted-era keys)
     async with db.execute(
-        "SELECT id, email, name, plan, stripe_customer_id, stripe_subscription_id FROM users WHERE api_key_hash = ?",
+        f"SELECT {cols} FROM users WHERE api_key_hash = ?",
         (token_hash,),
     ) as cursor:
         row = await cursor.fetchone()
     if row is None:
         # Fallback: legacy plaintext api_key lookup (pre-encryption data)
         async with db.execute(
-            "SELECT id, email, name, plan, stripe_customer_id, stripe_subscription_id FROM users WHERE api_key = ?",
+            f"SELECT {cols} FROM users WHERE api_key = ?",
             (token,),
         ) as cursor:
             row = await cursor.fetchone()
@@ -58,8 +62,9 @@ async def _lookup_user(token: str) -> dict | None:
         "email": decrypt_value(row["email"]),
         "name": row["name"],
         "plan": row["plan"],
-        "stripe_customer_id": row["stripe_customer_id"],
-        "stripe_subscription_id": row["stripe_subscription_id"],
+        "paddle_customer_id": row["paddle_customer_id"],
+        "paddle_subscription_id": row["paddle_subscription_id"],
+        "plan_renews_at": row["plan_renews_at"],
     }
 
 

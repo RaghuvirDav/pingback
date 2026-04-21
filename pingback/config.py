@@ -25,19 +25,32 @@ CHECK_INTERVAL_PRO = 60        # 1 minute
 HISTORY_DAYS_FREE = 7
 HISTORY_DAYS_PRO = 90
 
-# Stripe billing configuration.
-STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY", "")
-STRIPE_PUBLISHABLE_KEY = os.environ.get("STRIPE_PUBLISHABLE_KEY", "")
-STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
-# Preferred new names (MAK-82). STRIPE_PRO_PRICE_ID stays as a fallback so
-# hosts that configured the original single-price variable keep working.
-STRIPE_PRICE_ID_PRO_MONTHLY = (
-    os.environ.get("STRIPE_PRICE_ID_PRO_MONTHLY")
-    or os.environ.get("STRIPE_PRO_PRICE_ID", "")
-)
-STRIPE_PRICE_ID_PRO_ANNUAL = os.environ.get("STRIPE_PRICE_ID_PRO_ANNUAL", "")
-# Back-compat alias used by existing billing route.
-STRIPE_PRO_PRICE_ID = STRIPE_PRICE_ID_PRO_MONTHLY
+# Paddle billing configuration (MAK-97). Swapped in from the Stripe scaffold
+# that was never activated in prod. Leave blank to run as single-tier free.
+#   PADDLE_ENV=sandbox|production            — picks the Paddle.js environment.
+#   PADDLE_API_KEY                           — server → Paddle API (unused today,
+#                                              kept for future server calls).
+#   PADDLE_CLIENT_SIDE_TOKEN                 — Paddle.Initialize({ token }) on
+#                                              the billing/pricing pages.
+#   PADDLE_NOTIFICATION_SECRET               — HMAC secret for webhook signature
+#                                              verification (Paddle-Signature).
+#   PADDLE_PRICE_ID_PRO_{MONTHLY,ANNUAL}     — Pro tier price ids from the
+#                                              Paddle product catalog.
+PADDLE_ENV = os.environ.get("PADDLE_ENV", "sandbox")
+PADDLE_API_KEY = os.environ.get("PADDLE_API_KEY", "")
+PADDLE_CLIENT_SIDE_TOKEN = os.environ.get("PADDLE_CLIENT_SIDE_TOKEN", "")
+PADDLE_NOTIFICATION_SECRET = os.environ.get("PADDLE_NOTIFICATION_SECRET", "")
+PADDLE_PRICE_ID_PRO_MONTHLY = os.environ.get("PADDLE_PRICE_ID_PRO_MONTHLY", "")
+PADDLE_PRICE_ID_PRO_ANNUAL = os.environ.get("PADDLE_PRICE_ID_PRO_ANNUAL", "")
+
+
+def paddle_template_context() -> dict:
+    """The subset of Paddle config any page rendering the upgrade CTA needs."""
+    return {
+        "paddle_client_side_token": PADDLE_CLIENT_SIDE_TOKEN,
+        "paddle_env": PADDLE_ENV,
+        "paddle_price_id_pro_monthly": PADDLE_PRICE_ID_PRO_MONTHLY,
+    }
 
 # Encryption key for sensitive fields (Fernet symmetric encryption).
 # Generate with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"

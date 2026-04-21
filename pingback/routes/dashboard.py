@@ -78,8 +78,13 @@ async def landing(request: Request):
 
 @router.get("/pricing", response_class=HTMLResponse)
 async def pricing(request: Request):
+    from pingback.config import paddle_template_context
+
     user = await _get_ui_user(request)
-    return templates.TemplateResponse(request, "pricing.html", {"user": user})
+    return templates.TemplateResponse(request, "pricing.html", {
+        "user": user,
+        **paddle_template_context(),
+    })
 
 
 @router.get("/terms", response_class=HTMLResponse)

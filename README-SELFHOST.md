@@ -8,7 +8,7 @@ This guide walks you through deploying Pingback to your own AWS free-tier accoun
 - A domain you control (for HTTPS via Let's Encrypt). Apex + `www` both recommended.
 - A Resend account (https://resend.com) for transactional email — free tier is fine.
 - Optional: a Sentry account (https://sentry.io) for error tracking.
-- Optional: a Stripe account if you want paid billing tiers.
+- Optional: a Paddle account if you want paid billing tiers.
 - An SSH client and local `git`.
 
 No specific AWS region is required. Examples below assume `us-east-1`; swap in whatever region you prefer.
@@ -73,7 +73,7 @@ At minimum you must fill:
 - `RESEND_API_KEY=<your Resend key>`
 - `RESEND_FROM_EMAIL=Pingback <noreply@your-domain.com>` (the domain must be verified in Resend)
 
-Optional blocks (Sentry, Stripe, AWS region) are documented inline in `deploy/.env.example`. Leave them blank to disable those integrations.
+Optional blocks (Sentry, Paddle, AWS region) are documented inline in `deploy/.env.example`. Leave them blank to disable those integrations.
 
 Start the service:
 
@@ -123,33 +123,37 @@ Full details in [`docs/OPERATIONS.md`](docs/OPERATIONS.md).
 
 `setup-ec2.sh` installs an hourly SQLite backup cron for the `pingback` user (`deploy/backup-db.sh`). Backups land in `/opt/pingback/data/backups/`. If you want offsite copies, add an `aws s3 sync` step in that script or attach an S3 bucket via IAM role.
 
-## 9. Billing (optional — Stripe)
+## 9. Billing (optional — Paddle)
 
-Pingback ships a Free / Pro tier model wired to Stripe Checkout, the customer portal, and a signed webhook. The integration is **off by default** — leave the `STRIPE_*` env vars blank and Pingback runs as a single-tier free product.
+Pingback ships a Free / Pro tier model wired to Paddle's overlay checkout and a signed webhook. The integration is **off by default** — leave the `PADDLE_*` env vars blank and Pingback runs as a single-tier free product.
 
-To turn it on you need a Stripe account and one recurring price for the Pro tier.
+To turn it on you need a verified Paddle vendor account and one recurring price for the Pro tier.
 
 Required env vars (in `/opt/pingback/.env`):
 
-| Variable                          | Where it comes from                                                                          |
-|-----------------------------------|----------------------------------------------------------------------------------------------|
-| `STRIPE_SECRET_KEY`               | Stripe Dashboard → Developers → API keys (starts with `sk_test_` or `sk_live_`)              |
-| `STRIPE_PUBLISHABLE_KEY`          | Same page (starts with `pk_test_` or `pk_live_`)                                             |
-| `STRIPE_WEBHOOK_SECRET`           | Dashboard → Developers → Webhooks → endpoint signing secret (starts with `whsec_`)           |
-| `STRIPE_PRICE_ID_PRO_MONTHLY`     | Dashboard → Products → Pro plan → recurring price id (starts with `price_`)                  |
-| `STRIPE_PRICE_ID_PRO_ANNUAL`      | Optional — second recurring price id if you offer annual billing                              |
+| Variable                       | Where it comes from                                                                          |
+|--------------------------------|----------------------------------------------------------------------------------------------|
+| `PADDLE_ENV`                   | `sandbox` while testing; `production` once your vendor account is live                        |
+| `PADDLE_API_KEY`               | Paddle → Developer Tools → Authentication → API keys (starts with `pdl_sdbx_apikey_` / `pdl_live_apikey_`) |
+| `PADDLE_CLIENT_SIDE_TOKEN`     | Same page → Client-side Token (starts with `test_` / `live_`) — injected into Paddle.js       |
+| `PADDLE_NOTIFICATION_SECRET`   | Paddle → Developer Tools → Notifications → your endpoint → Secret key (starts with `pdl_ntfset_`) |
+| `PADDLE_PRICE_ID_PRO_MONTHLY`  | Catalog → Pingback Pro → recurring price id (starts with `pri_`)                              |
+| `PADDLE_PRICE_ID_PRO_ANNUAL`   | Optional — second recurring price id if you offer annual billing                              |
 
-Webhook endpoint to register in Stripe (Developers → Webhooks → Add endpoint):
+Webhook endpoint to register in Paddle (Developer Tools → Notifications → New destination):
 
-- URL: `https://your-domain.com/api/stripe/webhook`
+- URL: `https://your-domain.com/api/paddle/webhook`
 - Events to send:
-  - `checkout.session.completed`
-  - `customer.subscription.created`
-  - `customer.subscription.updated`
-  - `customer.subscription.deleted`
-  - `invoice.payment_failed`
+  - `subscription.created`
+  - `subscription.updated`
+  - `subscription.canceled`
+  - `subscription.past_due`
+  - `transaction.completed`
+  - `transaction.payment_failed`
 
-After saving the endpoint, copy its signing secret into `STRIPE_WEBHOOK_SECRET` and `sudo systemctl restart pingback`.
+After saving the destination, copy its Secret key into `PADDLE_NOTIFICATION_SECRET` and `sudo systemctl restart pingback`.
+
+Paddle's overlay checkout runs entirely in the browser — there is no server-side "create session" step. When a user clicks **Upgrade to Pro**, `Paddle.Checkout.open({ items, customer, customData })` opens the card entry overlay; after payment, Paddle sends the signed `subscription.created` webhook which flips the user to Pro and caches Paddle's per-subscription `customer_portal_url` on the user row (used by `/dashboard/billing/portal`).
 
 ### What the plans actually enforce (server-side)
 
@@ -161,18 +165,20 @@ After saving the endpoint, copy its signing secret into `STRIPE_WEBHOOK_SECRET` 
 
 Limits are enforced by the API and dashboard routes, not just the UI — a client cannot edit forms to cheat past them. See `pingback/services/plans.py` for the source of truth.
 
-### Test-mode walkthrough (recommended before going live)
+### Sandbox walkthrough (recommended before going live)
 
 ```bash
-# 1. Use Stripe test-mode keys in .env (sk_test_..., pk_test_..., whsec_...).
-# 2. Create a test recurring product in the Stripe Dashboard and copy the price id.
-# 3. Forward webhooks to your local server with the Stripe CLI:
-stripe listen --forward-to https://your-domain.com/api/stripe/webhook
-# 4. Sign up a user, click "Upgrade to Pro", complete Checkout with card 4242 4242 4242 4242.
-# 5. Verify the user.plan flipped to 'pro' in pingback.db, then cancel via the portal.
+# 1. Use PADDLE_ENV=sandbox and sandbox creds in .env (pdl_sdbx_apikey_..., test_...).
+# 2. In the Paddle sandbox dashboard, create the Pingback Pro product + recurring price.
+# 3. Register your webhook destination at https://your-domain.com/api/paddle/webhook
+#    (Paddle will not deliver to localhost — use a tunnel or staging host).
+# 4. Sign up a user, click "Upgrade to Pro", complete Checkout with test card
+#    4000 0566 5566 5556.
+# 5. Verify the user.plan flipped to 'pro' in pingback.db, then cancel via the
+#    portal URL Paddle cached on the user row.
 ```
 
-Webhook deliveries are idempotent by Stripe event id — Stripe's at-least-once retries are recorded in the `stripe_events` table and ignored on the second hit.
+Webhook deliveries are idempotent by Paddle `event_id` — Paddle's at-least-once retries are recorded in the `paddle_events` table and ignored on the second hit.
 
 ## Troubleshooting
 

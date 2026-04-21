@@ -58,13 +58,13 @@
       </ul>
       {% if user %}
         {% if user.plan == 'pro' %}
-        <form method="post" action="/dashboard/billing/portal" style="margin:18px 0 0">
-          <button class="btn btn-primary btn-full" type="submit">Manage subscription</button>
-        </form>
+        <a class="btn btn-primary btn-full" href="/dashboard/billing/portal" style="margin-top:18px">Manage subscription</a>
         {% else %}
-        <form method="post" action="/dashboard/billing/checkout" style="margin:18px 0 0">
-          <button class="btn btn-primary btn-full" type="submit">Upgrade to Pro {{ ic.i_arrow_right(14) }}</button>
-        </form>
+        <button class="btn btn-primary btn-full" style="margin-top:18px" type="button"
+                id="pricing-upgrade-pro"
+                {% if not paddle_client_side_token or not paddle_price_id_pro_monthly %}disabled title="Billing not configured"{% endif %}>
+          Upgrade to Pro {{ ic.i_arrow_right(14) }}
+        </button>
         {% endif %}
       {% else %}
       <a class="btn btn-primary btn-full" href="/signup?upgrade=pro" style="margin-top:18px">Start Pro trial {{ ic.i_arrow_right(14) }}</a>
@@ -110,6 +110,10 @@
       {% endif %}
     </div>
   </div>
+
+  {% with paddle_button_id='pricing-upgrade-pro' %}
+    {% include '_paddle_checkout.html' %}
+  {% endwith %}
 
   {% import "_brand.html" as brand %}
   <div class="footer">
