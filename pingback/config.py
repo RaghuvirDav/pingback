@@ -57,13 +57,14 @@ APP_ENV = os.environ.get("APP_ENV", "development")
 # Sign up at https://resend.com and grab your API key.
 RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")
 
-# Sender identities. `hello@` is deliberately NOT used — it is reserved for
-# human-to-human conversation. `digest@` sends the daily digest; `noreply@`
-# sends account mail (verification, password reset, billing receipts).
+# Sender identities. `hello@` is deliberately NOT used for outbound — it is
+# the inbound-only address for human-to-human conversation (forwarded via
+# Namecheap). `daily_status@` sends the daily digest; `noreply@` sends
+# account mail (verification, password reset, billing receipts).
 # RESEND_FROM_EMAIL is the legacy single-sender fallback used when the more
 # specific vars are blank.
 RESEND_FROM_EMAIL = os.environ.get("RESEND_FROM_EMAIL", "Pingback <noreply@example.com>")
-EMAIL_FROM_DIGEST = os.environ.get("EMAIL_FROM_DIGEST", "") or RESEND_FROM_EMAIL
+EMAIL_FROM_DAILY_STATUS = os.environ.get("EMAIL_FROM_DAILY_STATUS", "") or RESEND_FROM_EMAIL
 EMAIL_FROM_NOREPLY = os.environ.get("EMAIL_FROM_NOREPLY", "") or RESEND_FROM_EMAIL
 
 # Base URL for links in emails (unsubscribe, dashboard).
