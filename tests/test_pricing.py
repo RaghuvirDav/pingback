@@ -70,24 +70,33 @@ def test_dashboard_sidebar_hides_upgrade_pill_for_pro(auth_client, tmp_path):
     assert 'data-testid="sidebar-upgrade"' not in r.text
 
 
-def test_signup_with_upgrade_pro_lands_on_pricing(client):
+def test_signup_with_upgrade_pro_routes_via_key_reveal(client):
+    """MAK-93: upgrade=pro signups still land on /pricing?signed_up=1, but via
+    the /signup/success key-reveal page so they can save the API key first."""
     r = client.post(
         "/signup",
         data={"email": "upgrade@example.com", "name": "Up", "upgrade": "pro"},
         follow_redirects=False,
     )
     assert r.status_code == 303
-    assert r.headers["location"].startswith("/pricing")
+    assert r.headers["location"] == "/signup/success?upgrade=pro"
+    # After the user hits Continue, they land on pricing with the upgrade flag.
+    r2 = client.post("/signup/continue", data={"upgrade": "pro"}, follow_redirects=False)
+    assert r2.status_code == 303
+    assert r2.headers["location"] == "/pricing?signed_up=1"
 
 
-def test_signup_default_lands_on_dashboard(client):
+def test_signup_default_routes_via_key_reveal(client):
     r = client.post(
         "/signup",
         data={"email": "default@example.com", "name": "Def"},
         follow_redirects=False,
     )
     assert r.status_code == 303
-    assert "/dashboard" in r.headers["location"]
+    assert r.headers["location"] == "/signup/success"
+    r2 = client.post("/signup/continue", follow_redirects=False)
+    assert r2.status_code == 303
+    assert r2.headers["location"] == "/dashboard?welcome=1"
 
 
 def test_signup_get_with_upgrade_renders_hidden_field(client):

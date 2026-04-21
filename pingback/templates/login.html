@@ -8,7 +8,9 @@
     <div class="auth-card">
       <div class="auth-brand">{{ brand.brand_logo(28) }}</div>
       <h1>Welcome back</h1>
-      <div class="auth-sub">Sign in with your API key.</div>
+      <div class="auth-sub">
+        Sign in with the API key we showed you once at signup.
+      </div>
 
       {% if error %}<div class="flash error">{{ error }}</div>{% endif %}
 
@@ -17,7 +19,11 @@
           <label for="api_key">API key</label>
           <input class="input mono" type="password" id="api_key" name="api_key" required autofocus
                  autocomplete="current-password"
-                 placeholder="pb_live_sk_…">
+                 aria-describedby="api_key_help">
+          <div id="api_key_help" class="hint" style="margin-top:8px;line-height:1.5">
+            We don't store your key in readable form, so we can't look it up or email it to you.
+            Lost it? Email <a href="mailto:hello@usepingback.com">hello@usepingback.com</a>.
+          </div>
         </div>
         <button class="btn btn-primary btn-full btn-lg" type="submit">Sign in</button>
       </form>

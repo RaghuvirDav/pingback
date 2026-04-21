@@ -29,7 +29,14 @@ from pingback.services.plans import (
     ensure_interval_allowed,
     ensure_monitor_quota,
 )
-from pingback.session import clear_session, get_session_key, set_session
+from pingback.session import (
+    clear_session,
+    clear_signup_reveal,
+    get_session_key,
+    has_signup_reveal,
+    set_session,
+    set_signup_reveal,
+)
 
 _TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
 templates = Jinja2Templates(directory=str(_TEMPLATES_DIR))
@@ -180,9 +187,63 @@ async def signup_submit(
     )
     await db.commit()
 
-    landing = "/pricing?signed_up=1" if upgrade == "pro" else "/dashboard?welcome=1"
-    response = _redirect(landing)
+    # Route through the one-time key reveal page so the user has a chance to
+    # copy/save the plaintext API key before they leave the tab. Preserve the
+    # upgrade flag so the Continue button lands them where they expected.
+    reveal_url = "/signup/success"
+    if upgrade == "pro":
+        reveal_url += "?upgrade=pro"
+    response = _redirect(reveal_url)
     set_session(response, api_key)
+    set_signup_reveal(response)
+    # Never cache the post-signup response — the Set-Cookie carries the
+    # session and the reveal flag.
+    response.headers["Cache-Control"] = "no-store, private"
+    return response
+
+
+@router.get("/signup/success", response_class=HTMLResponse)
+async def signup_success(request: Request):
+    """One-time reveal of the plaintext API key after signup.
+
+    Gated on a short-lived `pb_signup_reveal` cookie plus the normal session
+    cookie. The plaintext key is read back from the signed session cookie and
+    rendered into the page exactly once per reveal window — it is never logged.
+    """
+    api_key = get_session_key(request)
+    if not (api_key and has_signup_reveal(request)):
+        return _redirect("/dashboard")
+    user = await _lookup_user(api_key)
+    if user is None:
+        return _redirect("/dashboard")
+
+    upgrade = request.query_params.get("upgrade", "")
+    continue_url = "/pricing?signed_up=1" if upgrade == "pro" else "/dashboard?welcome=1"
+
+    response = templates.TemplateResponse(request, "signup_success.html", {
+        "user": user,
+        "api_key": api_key,
+        "email": user["email"],
+        "upgrade": upgrade,
+        "continue_url": continue_url,
+    })
+    response.headers["Cache-Control"] = "no-store, private"
+    # Cookie is cleared when the user hits Continue (POST /signup/continue),
+    # or naturally after the 10-minute TTL — whichever comes first. We keep it
+    # around here so a quick refresh still shows the key during that window.
+    return response
+
+
+@router.post("/signup/continue")
+async def signup_continue(request: Request, upgrade: str = Form("")):
+    """Acknowledge the one-time API key reveal and land the user.
+
+    Clears the reveal marker so subsequent /signup/success hits redirect to
+    the dashboard — the key has been seen and should not be re-rendered.
+    """
+    target = "/pricing?signed_up=1" if upgrade == "pro" else "/dashboard?welcome=1"
+    response = _redirect(target)
+    clear_signup_reveal(response)
     return response
 
 

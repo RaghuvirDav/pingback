@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% import "_brand.html" as brand %}
+{% block title %}Save your API key — Pingback{% endblock %}
+{% block head %}
+<meta name="robots" content="noindex, nofollow">
+{% endblock %}
+{% block body %}
+<div class="main" role="main">
+  {% include "nav.html" %}
+  <div class="centerpage">
+    <div class="auth-card" style="max-width:520px">
+      <div class="auth-brand">{{ brand.brand_logo(28) }}</div>
+      <h1>Save your API key</h1>
+      <div class="auth-sub">Account created for <strong>{{ email }}</strong>.</div>
+
+      <div class="flash warn" role="alert" style="align-items:flex-start">
+        <div>
+          <strong>This is the only way to sign back in.</strong>
+          Save it now — we cannot recover it for you.
+        </div>
+      </div>
+
+      <div class="field">
+        <label for="api_key">Your API key</label>
+        <input class="input mono" type="text" id="api_key" value="{{ api_key }}"
+               readonly autocomplete="off"
+               aria-label="Your API key — copy and save it now"
+               onfocus="this.select()">
+      </div>
+
+      <div style="display:flex;gap:10px;margin-bottom:18px">
+        <button type="button" class="btn" id="copy-btn"
+                data-copy-target="api_key"
+                style="flex:1">Copy to clipboard</button>
+        <a id="download-btn" class="btn" download="pingback-api-key.txt"
+           href="#" style="flex:1;text-align:center">Download as .txt</a>
+      </div>
+
+      <form method="post" action="/signup/continue">
+        {% if upgrade == 'pro' %}
+        <input type="hidden" name="upgrade" value="pro">
+        {% endif %}
+        <button type="submit" class="btn btn-primary btn-full btn-lg">
+          I've saved it — Continue
+        </button>
+      </form>
+
+      <div class="auth-foot">
+        Lost it before you save it? You'll need to
+        <a href="/signup">sign up again</a> with a different email.
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+  (function () {
+    var key = document.getElementById('api_key').value;
+    var email = {{ email | tojson }};
+    var body = "Pingback account\n" +
+               "Email: " + email + "\n" +
+               "API key: " + key + "\n\n" +
+               "Keep this file safe. This key is your only way to sign back in.\n";
+    var blob = new Blob([body], { type: 'text/plain;charset=utf-8' });
+    document.getElementById('download-btn').href = URL.createObjectURL(blob);
+
+    var btn = document.getElementById('copy-btn');
+    btn.addEventListener('click', function () {
+      var input = document.getElementById('api_key');
+      input.focus(); input.select();
+      var done = function () {
+        var prev = btn.textContent;
+        btn.textContent = 'Copied';
+        setTimeout(function () { btn.textContent = prev; }, 1500);
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(key).then(done, function () {
+          try { document.execCommand('copy'); done(); } catch (_) {}
+        });
+      } else {
+        try { document.execCommand('copy'); done(); } catch (_) {}
+      }
+    });
+  })();
+</script>
+{% endblock %}
