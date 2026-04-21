@@ -5,18 +5,18 @@ import re
 
 
 def _api_key_for(client, email="api@example.com"):
-    """Sign up through the UI, then decode the session cookie to recover the API key.
+    """Sign up + verify through the UI, then decode the session cookie to recover the API key.
 
     The API key is stored in a signed `pb_session` cookie (base64-encoded,
     HMAC-signed). We decode it here so tests can exercise the JSON API with a
     real Bearer token.
     """
     from pingback.session import _verify
+    from tests.conftest import signup_and_verify
 
-    r = client.post("/signup", data={"email": email}, follow_redirects=False)
-    assert r.status_code == 303, r.text[:400]
+    signup_and_verify(client, email)
     cookie = client.cookies.get("pb_session")
-    assert cookie, "pb_session cookie not set after signup"
+    assert cookie, "pb_session cookie not set after verification"
     # Some cookie jars surround values with double quotes when they contain
     # `=`. Normalise before HMAC verification.
     cookie = cookie.strip('"')

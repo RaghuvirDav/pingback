@@ -23,6 +23,12 @@
                  value="{{ email or '' }}" placeholder="you@example.com">
         </div>
         <div class="field">
+          <label for="password">Password</label>
+          <input class="input" type="password" id="password" name="password" required
+                 autocomplete="new-password" minlength="8"
+                 placeholder="At least 8 characters">
+        </div>
+        <div class="field">
           <label for="name">Name <span class="hint">optional</span></label>
           <input class="input" type="text" id="name" name="name"
                  autocomplete="name"

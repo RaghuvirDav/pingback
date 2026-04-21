@@ -161,6 +161,59 @@ def _build_digest_html(user_name: str | None, stats: dict, unsubscribe_url: str)
 </html>"""
 
 
+def send_verification_email(*, to: str, name: str | None, verify_url: str) -> str | None:
+    """Send the "verify your email" link to a new signup.
+
+    No-ops (logs + returns None) when Resend is not configured. Keeps copy
+    deliberately minimal — we want it to look transactional, not marketing.
+    """
+    display = name or to
+    subject = "Verify your Pingback email"
+    text = (
+        f"Hi {display},\n\n"
+        f"Click the link below to verify your email and finish setting up your Pingback account:\n\n"
+        f"{verify_url}\n\n"
+        f"The link expires in 24 hours. If you didn't sign up for Pingback, you can ignore this email.\n"
+    )
+    html = f"""<!DOCTYPE html>
+<html><body style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;max-width:540px;margin:24px auto;color:#1e293b;">
+  <h2 style="margin:0 0 12px;">Verify your email</h2>
+  <p>Hi {display},</p>
+  <p>Click the button below to verify your email and finish setting up your Pingback account.</p>
+  <p style="margin:24px 0;">
+    <a href="{verify_url}" style="display:inline-block;background:#2563eb;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;font-weight:600;">Verify email</a>
+  </p>
+  <p style="color:#6b7280;font-size:13px;">Or paste this link into your browser:<br><code>{verify_url}</code></p>
+  <p style="color:#6b7280;font-size:13px;">The link expires in 24 hours. If you didn't sign up for Pingback, you can ignore this email.</p>
+</body></html>"""
+    return send_email(to=to, subject=subject, text=text, html=html)
+
+
+def send_password_reset_email(*, to: str, name: str | None, reset_url: str) -> str | None:
+    """Send a password reset link. Used for both "forgot password" and the
+    legacy-account "set your first password" prompt — same mechanism."""
+    display = name or to
+    subject = "Reset your Pingback password"
+    text = (
+        f"Hi {display},\n\n"
+        f"Use the link below to set a new password for your Pingback account:\n\n"
+        f"{reset_url}\n\n"
+        f"The link expires in 2 hours. If you didn't request this, you can safely ignore this email.\n"
+    )
+    html = f"""<!DOCTYPE html>
+<html><body style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;max-width:540px;margin:24px auto;color:#1e293b;">
+  <h2 style="margin:0 0 12px;">Reset your password</h2>
+  <p>Hi {display},</p>
+  <p>Click the button below to set a new password for your Pingback account.</p>
+  <p style="margin:24px 0;">
+    <a href="{reset_url}" style="display:inline-block;background:#2563eb;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;font-weight:600;">Reset password</a>
+  </p>
+  <p style="color:#6b7280;font-size:13px;">Or paste this link into your browser:<br><code>{reset_url}</code></p>
+  <p style="color:#6b7280;font-size:13px;">The link expires in 2 hours. If you didn't request this, you can safely ignore this email.</p>
+</body></html>"""
+    return send_email(to=to, subject=subject, text=text, html=html)
+
+
 async def send_daily_digests(current_hour_utc: int) -> int:
     """Send digest emails to all eligible users for the given UTC hour. Returns count sent."""
     if not RESEND_API_KEY:

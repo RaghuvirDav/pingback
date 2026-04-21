@@ -70,22 +70,39 @@ def test_dashboard_sidebar_hides_upgrade_pill_for_pro(auth_client, tmp_path):
     assert 'data-testid="sidebar-upgrade"' not in r.text
 
 
-def test_signup_with_upgrade_pro_lands_on_pricing(client):
+def test_signup_with_upgrade_pro_lands_on_pricing_after_verify(client):
+    """The upgrade=pro hint has to survive email verification (MAK-96 inserted
+    a verify step between signup and the first authed page)."""
+    from tests.conftest import TEST_PASSWORD, _verification_token_for
+
     r = client.post(
         "/signup",
-        data={"email": "upgrade@example.com", "name": "Up", "upgrade": "pro"},
+        data={
+            "email": "upgrade@example.com",
+            "name": "Up",
+            "password": TEST_PASSWORD,
+            "upgrade": "pro",
+        },
         follow_redirects=False,
     )
+    assert r.status_code == 200
+    token = _verification_token_for("upgrade@example.com")
+    r = client.get(f"/verify?token={token}&upgrade=pro", follow_redirects=False)
     assert r.status_code == 303
     assert r.headers["location"].startswith("/pricing")
 
 
-def test_signup_default_lands_on_dashboard(client):
+def test_signup_default_lands_on_dashboard_after_verify(client):
+    from tests.conftest import TEST_PASSWORD, _verification_token_for
+
     r = client.post(
         "/signup",
-        data={"email": "default@example.com", "name": "Def"},
+        data={"email": "default@example.com", "name": "Def", "password": TEST_PASSWORD},
         follow_redirects=False,
     )
+    assert r.status_code == 200
+    token = _verification_token_for("default@example.com")
+    r = client.get(f"/verify?token={token}", follow_redirects=False)
     assert r.status_code == 303
     assert "/dashboard" in r.headers["location"]
 

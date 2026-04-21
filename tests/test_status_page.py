@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import re
 
+from tests.conftest import signup_and_verify
+
 
 def _user_id(client):
     """Fetch the current logged-in user's id from settings."""
@@ -14,7 +16,7 @@ def _user_id(client):
 
 
 def test_public_status_page_shows_only_public_monitors(client):
-    client.post("/signup", data={"email": "pub@example.com"}, follow_redirects=False)
+    signup_and_verify(client, "pub@example.com")
     # Private monitor
     client.post(
         "/dashboard/monitors/new",
@@ -41,7 +43,7 @@ def test_status_page_unknown_user_is_404(client):
 
 def test_status_page_empty_state(client):
     """User exists but has no public monitors — should render gracefully."""
-    client.post("/signup", data={"email": "empty@example.com"}, follow_redirects=False)
+    signup_and_verify(client, "empty@example.com")
     uid = _user_id(client)
     r = client.get(f"/status/{uid}")
     assert r.status_code == 200

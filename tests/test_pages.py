@@ -17,7 +17,9 @@ def test_login_page_renders(client):
     r = client.get("/login")
     assert r.status_code == 200
     assert "Welcome back" in r.text
-    assert "API key" in r.text
+    assert "Email" in r.text
+    assert "Password" in r.text
+    assert "Forgot password?" in r.text
 
 
 def test_signup_page_renders(client):
@@ -49,7 +51,8 @@ def test_dashboard_requires_login(client):
 def test_dashboard_has_role_main_and_aria_current(client):
     """A11y: dashboard page must expose the main landmark and mark the
     active sidebar item with aria-current."""
-    client.post("/signup", data={"email": "a11y@example.com"}, follow_redirects=False)
+    from tests.conftest import signup_and_verify
+    signup_and_verify(client, "a11y@example.com")
     r = client.get("/dashboard")
     assert r.status_code == 200
     assert 'role="main"' in r.text

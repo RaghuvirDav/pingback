@@ -99,6 +99,20 @@ MIGRATIONS = [
         type TEXT NOT NULL,
         received_at TEXT NOT NULL DEFAULT (datetime('now'))
     )""",
+    # Email + password auth (MAK-96). Existing API-key auth continues to work
+    # for programmatic access; these columns light up the UI sign-in flow.
+    """ALTER TABLE users ADD COLUMN password_hash TEXT""",
+    """ALTER TABLE users ADD COLUMN email_verified INTEGER NOT NULL DEFAULT 0""",
+    """ALTER TABLE users ADD COLUMN verification_token TEXT""",
+    """ALTER TABLE users ADD COLUMN verification_expires_at TEXT""",
+    """ALTER TABLE users ADD COLUMN reset_token TEXT""",
+    """ALTER TABLE users ADD COLUMN reset_expires_at TEXT""",
+    """CREATE INDEX IF NOT EXISTS idx_users_verification_token ON users(verification_token)""",
+    """CREATE INDEX IF NOT EXISTS idx_users_reset_token ON users(reset_token)""",
+    # Trust the incumbents: any row that existed before this migration ran (no
+    # password_hash yet) gets email_verified=1 so they can keep using the app
+    # while they set a password on next login.
+    """UPDATE users SET email_verified = 1 WHERE password_hash IS NULL""",
 ]
 
 

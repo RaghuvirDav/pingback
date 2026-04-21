@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% import "_brand.html" as brand %}
+{% block title %}Verification — Pingback{% endblock %}
+{% block body %}
+<div class="main" role="main">
+  {% include "nav.html" %}
+  <div class="centerpage">
+    <div class="auth-card">
+      <div class="auth-brand">{{ brand.brand_logo(28) }}</div>
+      <h1>{{ 'Verified' if ok else 'Verification failed' }}</h1>
+      <div class="auth-sub">{{ message }}</div>
+      <div class="auth-foot" style="margin-top:16px">
+        <a href="/login">Go to sign in</a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
