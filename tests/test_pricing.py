@@ -25,11 +25,13 @@ def test_pricing_page_renders_for_guest(client):
     assert 'href="/signup"' in r.text
 
 
-def test_pricing_for_authed_free_user_posts_to_checkout(auth_client):
+def test_pricing_for_authed_free_user_renders_paddle_upgrade_button(auth_client):
     r = auth_client.get("/pricing")
     assert r.status_code == 200
-    # Authed free user sees a POST checkout form, not the guest signup link
-    assert 'action="/dashboard/billing/checkout"' in r.text
+    # Authed free user sees the Paddle.js-driven upgrade button, not the guest
+    # signup link. With no Paddle credentials configured in tests the button is
+    # disabled but still present.
+    assert 'id="paddle-upgrade-btn"' in r.text
     assert "Upgrade to Pro" in r.text
     assert 'href="/signup?upgrade=pro"' not in r.text
 

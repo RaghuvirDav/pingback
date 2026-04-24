@@ -1,4 +1,8 @@
-"""Billing page + checkout-flow smoke (Stripe calls stubbed via unavailable key)."""
+"""Billing page + portal flow smoke tests.
+
+Real Paddle API calls are never made — Paddle.js runs client-side in the
+browser, and the portal endpoint short-circuits when PADDLE_API_KEY is
+blank (the route returns an error redirect rather than calling out)."""
 from __future__ import annotations
 
 from tests.conftest import signup_and_verify
@@ -17,14 +21,26 @@ def test_billing_page_marks_current_plan_for_free(client):
     signup_and_verify(client, "current@example.com")
     r = client.get("/dashboard/billing")
     assert r.status_code == 200
-    # The Free plan tile should show "Current plan".
     assert "Current plan" in r.text
 
 
-def test_checkout_without_stripe_key_fails_safely(client):
-    """When STRIPE_SECRET_KEY is not configured the checkout endpoint must
-    respond with an error (not a 500 or crash)."""
-    signup_and_verify(client, "no-stripe@example.com")
-    r = client.post("/dashboard/billing/checkout", follow_redirects=False)
-    # Either an error flash redirect OR a 4xx/5xx — never a crash.
-    assert r.status_code in (200, 303, 400, 500, 503)
+def test_upgrade_button_disabled_when_paddle_not_configured(client):
+    """With no PADDLE_CLIENT_TOKEN, the Paddle.js script must not load and the
+    upgrade button must be disabled — page still renders, no JS errors."""
+    signup_and_verify(client, "noconf@example.com")
+    r = client.get("/dashboard/billing")
+    assert r.status_code == 200
+    assert "paddle-upgrade-btn" in r.text
+    assert "disabled" in r.text
+    assert "cdn.paddle.com" not in r.text
+
+
+def test_portal_without_customer_redirects_with_error(client):
+    """A free user with no paddle_customer_id can't open the portal — the route
+    must redirect back with an error, not 500."""
+    signup_and_verify(client, "noportal@example.com")
+    r = client.post("/dashboard/billing/portal", follow_redirects=False)
+    assert r.status_code in (302, 303)
+    location = r.headers.get("location", "")
+    assert "/dashboard/billing" in location
+    assert "error" in location.lower()

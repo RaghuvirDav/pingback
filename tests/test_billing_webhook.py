@@ -1,26 +1,31 @@
-"""Stripe webhook: signature verification, plan transitions, idempotency.
+"""Paddle webhook: signature verification, plan transitions, idempotency.
 
 These tests sign payloads with the same secret the webhook route reads and
 drive the route via the TestClient, so signature verification runs for real.
-The Stripe API itself is never called — we only build the JSON payloads that
-Stripe would have sent.
+The Paddle API itself is never called — we only build the JSON payloads that
+Paddle would have sent.
+
+Paddle-Signature scheme:
+    Header value:    ts=<unix>;h1=<hex>
+    Signed payload:  f"{ts}:{raw_body}"
+    Algorithm:       HMAC-SHA256 with PADDLE_WEBHOOK_SECRET
 """
 from __future__ import annotations
 
+import hashlib
 import hmac
 import json
 import os
 import sqlite3
 import time
 import uuid
-from hashlib import sha256
 
 import pytest
 from cryptography.fernet import Fernet
 
 
-WEBHOOK_SECRET = "whsec_test_secret"
-WEBHOOK_URL = "/api/stripe/webhook"
+WEBHOOK_SECRET = "pdl_ntfset_test_secret"
+WEBHOOK_URL = "/api/paddle/webhook"
 
 
 # ---------------------------------------------------------------------------
@@ -29,7 +34,6 @@ WEBHOOK_URL = "/api/stripe/webhook"
 
 @pytest.fixture
 def billing_app(monkeypatch, tmp_path):
-    """Like the shared `app_ctx` but with Stripe credentials populated."""
     import importlib
     import sys
 
@@ -38,9 +42,12 @@ def billing_app(monkeypatch, tmp_path):
     monkeypatch.setenv("APP_ENV", "development")
     monkeypatch.setenv("ENCRYPTION_KEY", Fernet.generate_key().decode())
     monkeypatch.setenv("APP_BASE_URL", "http://localhost:8000")
-    monkeypatch.setenv("STRIPE_SECRET_KEY", "sk_test_dummy")
-    monkeypatch.setenv("STRIPE_WEBHOOK_SECRET", WEBHOOK_SECRET)
-    monkeypatch.setenv("STRIPE_PRICE_ID_PRO_MONTHLY", "price_test_pro")
+    monkeypatch.setenv("PADDLE_ENVIRONMENT", "sandbox")
+    monkeypatch.setenv("PADDLE_API_KEY", "pdl_test_apikey")
+    monkeypatch.setenv("PADDLE_CLIENT_TOKEN", "test_client_token")
+    monkeypatch.setenv("PADDLE_WEBHOOK_SECRET", WEBHOOK_SECRET)
+    monkeypatch.setenv("PADDLE_PRODUCT_ID", "pro_test")
+    monkeypatch.setenv("PADDLE_PRICE_ID_MONTHLY", "pri_test_monthly")
     monkeypatch.setenv("RESEND_API_KEY", "")
 
     for mod in list(sys.modules):
@@ -63,24 +70,24 @@ def billing_client(billing_app):
 
 def _sign(payload: bytes, secret: str = WEBHOOK_SECRET) -> str:
     ts = str(int(time.time()))
-    signed = f"{ts}.{payload.decode()}".encode()
-    v1 = hmac.new(secret.encode(), signed, sha256).hexdigest()
-    return f"t={ts},v1={v1}"
+    signed = f"{ts}:{payload.decode()}".encode("utf-8")
+    h1 = hmac.new(secret.encode("utf-8"), signed, hashlib.sha256).hexdigest()
+    return f"ts={ts};h1={h1}"
 
 
 def _signup_with_customer(client, email: str, customer_id: str) -> str:
-    """Sign up a user and attach a Stripe customer id. Returns the user id."""
+    """Sign up a user and attach a Paddle customer id. Returns the user id."""
     from tests.conftest import signup_and_verify
     signup_and_verify(client, email)
     con = sqlite3.connect(client.db_path)
     row = con.execute(
         "SELECT id FROM users WHERE email_hash = ?",
-        ((_hash_email(email)),),
+        (_hash_email(email),),
     ).fetchone()
     assert row, "signup did not create a user"
     user_id = row[0]
     con.execute(
-        "UPDATE users SET stripe_customer_id = ? WHERE id = ?",
+        "UPDATE users SET paddle_customer_id = ? WHERE id = ?",
         (customer_id, user_id),
     )
     con.commit()
@@ -94,27 +101,23 @@ def _hash_email(email: str) -> str:
     return hash_email(email)
 
 
-def _user_plan(client, user_id: str) -> tuple[str, str | None, str | None]:
+def _user_plan(client, user_id: str):
     con = sqlite3.connect(client.db_path)
     row = con.execute(
-        "SELECT plan, stripe_subscription_id, plan_renews_at FROM users WHERE id = ?",
+        "SELECT plan, paddle_subscription_id, plan_renews_at, plan_cancel_at FROM users WHERE id = ?",
         (user_id,),
     ).fetchone()
     con.close()
     return row
 
 
-def _event(event_type: str, obj: dict, event_id: str | None = None) -> dict:
+def _event(event_type: str, data: dict, event_id: str | None = None) -> dict:
     return {
-        "id": event_id or f"evt_{uuid.uuid4().hex}",
-        "object": "event",
-        "api_version": "2024-06-20",
-        "type": event_type,
-        "data": {"object": obj},
-        "created": int(time.time()),
-        "livemode": False,
-        "pending_webhooks": 0,
-        "request": {"id": None, "idempotency_key": None},
+        "event_id": event_id or f"evt_{uuid.uuid4().hex}",
+        "event_type": event_type,
+        "occurred_at": "2026-04-21T10:00:00Z",
+        "notification_id": f"ntf_{uuid.uuid4().hex}",
+        "data": data,
     }
 
 
@@ -126,7 +129,7 @@ def _post_event(client, event: dict, *, secret: str = WEBHOOK_SECRET, tamper: bo
     return client.post(
         WEBHOOK_URL,
         content=body,
-        headers={"stripe-signature": sig, "content-type": "application/json"},
+        headers={"paddle-signature": sig, "content-type": "application/json"},
     )
 
 
@@ -142,8 +145,8 @@ def test_webhook_rejects_missing_signature(billing_client):
 def test_webhook_rejects_wrong_secret(billing_client):
     r = _post_event(
         billing_client,
-        _event("customer.subscription.updated", {"customer": "cus_x", "id": "sub_x", "status": "active"}),
-        secret="whsec_wrong",
+        _event("subscription.updated", {"customer_id": "ctm_x", "id": "sub_x", "status": "active"}),
+        secret="pdl_ntfset_wrong",
     )
     assert r.status_code == 400
 
@@ -151,9 +154,15 @@ def test_webhook_rejects_wrong_secret(billing_client):
 def test_webhook_rejects_tampered_body(billing_client):
     r = _post_event(
         billing_client,
-        _event("customer.subscription.updated", {"customer": "cus_x", "id": "sub_x", "status": "active"}),
+        _event("subscription.updated", {"customer_id": "ctm_x", "id": "sub_x", "status": "active"}),
         tamper=True,
     )
+    assert r.status_code == 400
+
+
+def test_webhook_rejects_malformed_signature_header(billing_client):
+    body = json.dumps(_event("subscription.updated", {"customer_id": "ctm_x"})).encode()
+    r = billing_client.post(WEBHOOK_URL, content=body, headers={"paddle-signature": "garbage"})
     assert r.status_code == 400
 
 
@@ -167,15 +176,14 @@ def test_webhook_returns_503_when_secret_not_configured(monkeypatch, tmp_path):
     monkeypatch.setenv("APP_ENV", "development")
     monkeypatch.setenv("ENCRYPTION_KEY", Fernet.generate_key().decode())
     monkeypatch.setenv("APP_BASE_URL", "http://localhost:8000")
-    monkeypatch.setenv("STRIPE_SECRET_KEY", "")
-    monkeypatch.setenv("STRIPE_WEBHOOK_SECRET", "")
+    monkeypatch.setenv("PADDLE_WEBHOOK_SECRET", "")
     monkeypatch.setenv("RESEND_API_KEY", "")
     for mod in list(sys.modules):
         if mod == "pingback" or mod.startswith("pingback."):
             del sys.modules[mod]
     pingback_main = importlib.import_module("pingback.main")
     with TestClient(pingback_main.app) as c:
-        r = c.post(WEBHOOK_URL, content=b"{}", headers={"stripe-signature": "t=0,v1=0"})
+        r = c.post(WEBHOOK_URL, content=b"{}", headers={"paddle-signature": "ts=0;h1=0"})
         assert r.status_code == 503
 
 
@@ -184,35 +192,34 @@ def test_webhook_returns_503_when_secret_not_configured(monkeypatch, tmp_path):
 # ---------------------------------------------------------------------------
 
 def test_subscription_active_upgrades_user_to_pro(billing_client):
-    user_id = _signup_with_customer(billing_client, "upgrade@example.com", "cus_upgrade")
+    user_id = _signup_with_customer(billing_client, "upgrade@example.com", "ctm_upgrade")
     assert _user_plan(billing_client, user_id)[0] == "free"
 
-    period_end = int(time.time()) + 30 * 86400
     r = _post_event(
         billing_client,
         _event(
-            "customer.subscription.updated",
+            "subscription.updated",
             {
-                "customer": "cus_upgrade",
+                "customer_id": "ctm_upgrade",
                 "id": "sub_upgrade",
                 "status": "active",
-                "current_period_end": period_end,
+                "next_billed_at": "2026-05-21T00:00:00Z",
             },
         ),
     )
     assert r.status_code == 200
-    plan, sub_id, renews_at = _user_plan(billing_client, user_id)
+    plan, sub_id, renews_at, cancel_at = _user_plan(billing_client, user_id)
     assert plan == "pro"
     assert sub_id == "sub_upgrade"
-    assert renews_at is not None
+    assert renews_at == "2026-05-21T00:00:00Z"
+    assert cancel_at is None
 
 
-def test_subscription_canceled_downgrades_to_free(billing_client):
-    user_id = _signup_with_customer(billing_client, "cancel@example.com", "cus_cancel")
-    # Start from Pro.
+def test_subscription_canceled_immediate_downgrades_to_free(billing_client):
+    user_id = _signup_with_customer(billing_client, "cancel@example.com", "ctm_cancel")
     con = sqlite3.connect(billing_client.db_path)
     con.execute(
-        "UPDATE users SET plan = 'pro', stripe_subscription_id = 'sub_cancel', plan_renews_at = '2099-01-01T00:00:00+00:00' WHERE id = ?",
+        "UPDATE users SET plan = 'pro', paddle_subscription_id = 'sub_cancel' WHERE id = ?",
         (user_id,),
     )
     con.commit()
@@ -221,32 +228,22 @@ def test_subscription_canceled_downgrades_to_free(billing_client):
     r = _post_event(
         billing_client,
         _event(
-            "customer.subscription.deleted",
-            {"customer": "cus_cancel", "id": "sub_cancel", "status": "canceled"},
+            "subscription.canceled",
+            {"customer_id": "ctm_cancel", "id": "sub_cancel", "status": "canceled"},
         ),
     )
     assert r.status_code == 200
-    plan, sub_id, renews_at = _user_plan(billing_client, user_id)
+    plan, sub_id, renews_at, cancel_at = _user_plan(billing_client, user_id)
     assert plan == "free"
     assert sub_id is None
     assert renews_at is None
+    assert cancel_at is None
 
 
-def test_subscription_past_due_downgrades_to_free(billing_client):
-    user_id = _signup_with_customer(billing_client, "pastdue@example.com", "cus_pd")
-    r = _post_event(
-        billing_client,
-        _event(
-            "customer.subscription.updated",
-            {"customer": "cus_pd", "id": "sub_pd", "status": "past_due"},
-        ),
-    )
-    assert r.status_code == 200
-    assert _user_plan(billing_client, user_id)[0] == "free"
-
-
-def test_payment_failed_does_not_change_plan(billing_client):
-    user_id = _signup_with_customer(billing_client, "pf@example.com", "cus_pf")
+def test_subscription_canceled_with_scheduled_change_keeps_pro_until_effective(billing_client):
+    """Paddle keeps the user on Pro until scheduled_change.effective_at; we stamp
+    plan_cancel_at and leave plan='pro'."""
+    user_id = _signup_with_customer(billing_client, "sched@example.com", "ctm_sched")
     con = sqlite3.connect(billing_client.db_path)
     con.execute("UPDATE users SET plan = 'pro' WHERE id = ?", (user_id,))
     con.commit()
@@ -255,20 +252,66 @@ def test_payment_failed_does_not_change_plan(billing_client):
     r = _post_event(
         billing_client,
         _event(
-            "invoice.payment_failed",
-            {"customer": "cus_pf", "id": "in_test"},
+            "subscription.updated",
+            {
+                "customer_id": "ctm_sched",
+                "id": "sub_sched",
+                "status": "active",
+                "scheduled_change": {
+                    "action": "cancel",
+                    "effective_at": "2026-06-01T00:00:00Z",
+                },
+            },
         ),
     )
     assert r.status_code == 200
-    # Stripe will follow up with subscription.updated if the plan should flip;
-    # payment_failed alone must not flip the plan.
+    plan, _sub, _renews, cancel_at = _user_plan(billing_client, user_id)
+    assert plan == "pro"
+    assert cancel_at == "2026-06-01T00:00:00Z"
+
+
+def test_subscription_past_due_keeps_user_on_pro(billing_client):
+    """past_due means Paddle is still retrying; the user shouldn't lose access
+    yet. Only canceled/expired events flip plan to free."""
+    user_id = _signup_with_customer(billing_client, "pd@example.com", "ctm_pd")
+    con = sqlite3.connect(billing_client.db_path)
+    con.execute("UPDATE users SET plan = 'pro' WHERE id = ?", (user_id,))
+    con.commit()
+    con.close()
+
+    r = _post_event(
+        billing_client,
+        _event(
+            "subscription.updated",
+            {"customer_id": "ctm_pd", "id": "sub_pd", "status": "past_due"},
+        ),
+    )
+    assert r.status_code == 200
     assert _user_plan(billing_client, user_id)[0] == "pro"
 
 
-def test_checkout_completed_claims_customer_id(billing_client):
-    """If subscription.updated arrives before checkout, /billing/checkout already
-    set the customer id. Otherwise, checkout.session.completed should claim it."""
-    # Sign up without a customer id.
+def test_payment_failed_does_not_change_plan(billing_client):
+    user_id = _signup_with_customer(billing_client, "pf@example.com", "ctm_pf")
+    con = sqlite3.connect(billing_client.db_path)
+    con.execute("UPDATE users SET plan = 'pro' WHERE id = ?", (user_id,))
+    con.commit()
+    con.close()
+
+    r = _post_event(
+        billing_client,
+        _event(
+            "transaction.payment_failed",
+            {"customer_id": "ctm_pf", "id": "txn_pf"},
+        ),
+    )
+    assert r.status_code == 200
+    assert _user_plan(billing_client, user_id)[0] == "pro"
+
+
+def test_subscription_created_claims_customer_id_via_custom_data(billing_client):
+    """The Paddle.js overlay sends pingback_user_id in custom_data so the very
+    first subscription.created event can attach the customer to the local user
+    without any prior /billing/checkout server call."""
     from tests.conftest import signup_and_verify
     signup_and_verify(billing_client, "claim@example.com")
     con = sqlite3.connect(billing_client.db_path)
@@ -281,10 +324,13 @@ def test_checkout_completed_claims_customer_id(billing_client):
     r = _post_event(
         billing_client,
         _event(
-            "checkout.session.completed",
+            "subscription.created",
             {
-                "customer": "cus_claim",
-                "metadata": {"pingback_user_id": user_id},
+                "customer_id": "ctm_claim",
+                "id": "sub_claim",
+                "status": "active",
+                "next_billed_at": "2026-05-21T00:00:00Z",
+                "custom_data": {"pingback_user_id": user_id},
             },
         ),
     )
@@ -292,10 +338,11 @@ def test_checkout_completed_claims_customer_id(billing_client):
 
     con = sqlite3.connect(billing_client.db_path)
     row = con.execute(
-        "SELECT stripe_customer_id FROM users WHERE id = ?", (user_id,)
+        "SELECT plan, paddle_customer_id FROM users WHERE id = ?", (user_id,)
     ).fetchone()
     con.close()
-    assert row[0] == "cus_claim"
+    assert row[0] == "pro"
+    assert row[1] == "ctm_claim"
 
 
 # ---------------------------------------------------------------------------
@@ -303,10 +350,10 @@ def test_checkout_completed_claims_customer_id(billing_client):
 # ---------------------------------------------------------------------------
 
 def test_duplicate_event_id_does_not_double_flip(billing_client):
-    user_id = _signup_with_customer(billing_client, "idem@example.com", "cus_idem")
+    user_id = _signup_with_customer(billing_client, "idem@example.com", "ctm_idem")
     event = _event(
-        "customer.subscription.updated",
-        {"customer": "cus_idem", "id": "sub_idem", "status": "active"},
+        "subscription.updated",
+        {"customer_id": "ctm_idem", "id": "sub_idem", "status": "active"},
         event_id="evt_idem_fixed",
     )
 
@@ -314,7 +361,7 @@ def test_duplicate_event_id_does_not_double_flip(billing_client):
     assert r1.status_code == 200
     assert _user_plan(billing_client, user_id)[0] == "pro"
 
-    # Flip back manually so we can observe whether the retry re-applies the update.
+    # Manually flip back so we can detect whether the retry re-applies.
     con = sqlite3.connect(billing_client.db_path)
     con.execute("UPDATE users SET plan = 'free' WHERE id = ?", (user_id,))
     con.commit()
@@ -323,5 +370,4 @@ def test_duplicate_event_id_does_not_double_flip(billing_client):
     r2 = _post_event(billing_client, event)
     assert r2.status_code == 200
     assert r2.json().get("duplicate") is True
-    # Retry must NOT re-upgrade the user.
     assert _user_plan(billing_client, user_id)[0] == "free"

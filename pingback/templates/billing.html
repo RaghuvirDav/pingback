@@ -55,9 +55,12 @@
             <button class="btn btn-primary btn-full" style="margin-top:16px" type="submit">Manage subscription</button>
           </form>
           {% else %}
-          <form method="post" action="/dashboard/billing/checkout" style="margin:0">
-            <button class="btn btn-primary btn-full" style="margin-top:16px" type="submit">Upgrade to Pro</button>
-          </form>
+          <button class="btn btn-primary btn-full" style="margin-top:16px"
+                  type="button" id="paddle-upgrade-btn"
+                  {% if not paddle_client_token or not paddle_price_monthly %}disabled
+                  title="Billing is not configured"{% endif %}>
+            Upgrade to Pro
+          </button>
           {% endif %}
         </div>
 
@@ -82,8 +85,8 @@
           <div>
             <div class="k-label" style="font-size:11px;color:var(--fg-3);text-transform:uppercase;letter-spacing:0.08em">Status</div>
             <div style="margin-top:6px">
-              {% if subscription and subscription.cancel_at_period_end %}
-                <span class="tag warn">Cancels at period end</span>
+              {% if user.plan_cancel_at %}
+                <span class="tag warn">Cancels {{ user.plan_cancel_at[:10] }}</span>
               {% else %}
                 <span class="tag up">Active</span>
               {% endif %}
@@ -115,4 +118,22 @@
     </div>
   </div>
 </div>
+
+{% if user.plan != 'pro' and paddle_client_token and paddle_price_monthly %}
+<script src="https://cdn.paddle.com/paddle/v2/paddle.js"></script>
+<script>
+  Paddle.Environment.set("{{ paddle_environment|default('sandbox') }}");
+  Paddle.Initialize({ token: "{{ paddle_client_token }}" });
+
+  document.getElementById("paddle-upgrade-btn")?.addEventListener("click", function () {
+    Paddle.Checkout.open({
+      items: [{ priceId: "{{ paddle_price_monthly }}", quantity: 1 }],
+      customer: { email: "{{ user.email }}" },
+      customData: { pingback_user_id: "{{ user.id }}" },
+      {% if paddle_discount_launch %}discountId: "{{ paddle_discount_launch }}",{% endif %}
+      successUrl: "{{ request.url_for('billing_page') }}?success=Welcome+to+Pro!"
+    });
+  });
+</script>
+{% endif %}
 {% endblock %}

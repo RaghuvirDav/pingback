@@ -25,19 +25,23 @@ CHECK_INTERVAL_PRO = 60        # 1 minute
 HISTORY_DAYS_FREE = 7
 HISTORY_DAYS_PRO = 90
 
-# Stripe billing configuration.
-STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY", "")
-STRIPE_PUBLISHABLE_KEY = os.environ.get("STRIPE_PUBLISHABLE_KEY", "")
-STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET", "")
-# Preferred new names (MAK-82). STRIPE_PRO_PRICE_ID stays as a fallback so
-# hosts that configured the original single-price variable keep working.
-STRIPE_PRICE_ID_PRO_MONTHLY = (
-    os.environ.get("STRIPE_PRICE_ID_PRO_MONTHLY")
-    or os.environ.get("STRIPE_PRO_PRICE_ID", "")
+# Paddle billing configuration (MAK-82 pivoted from Stripe to Paddle MoR).
+# All values come from the Paddle Dashboard; PADDLE_ENVIRONMENT toggles the
+# API base URL between sandbox.paddle.com and api.paddle.com.
+PADDLE_ENVIRONMENT = os.environ.get("PADDLE_ENVIRONMENT", "sandbox")
+PADDLE_API_KEY = os.environ.get("PADDLE_API_KEY", "")
+PADDLE_CLIENT_TOKEN = os.environ.get("PADDLE_CLIENT_TOKEN", "")
+PADDLE_WEBHOOK_SECRET = os.environ.get("PADDLE_WEBHOOK_SECRET", "")
+PADDLE_PRODUCT_ID = os.environ.get("PADDLE_PRODUCT_ID", "")
+PADDLE_PRICE_ID_MONTHLY = os.environ.get("PADDLE_PRICE_ID_MONTHLY", "")
+PADDLE_PRICE_ID_YEARLY = os.environ.get("PADDLE_PRICE_ID_YEARLY", "")
+PADDLE_DISCOUNT_ID_LAUNCH = os.environ.get("PADDLE_DISCOUNT_ID_LAUNCH", "")
+
+PADDLE_API_BASE_URL = (
+    "https://sandbox-api.paddle.com"
+    if PADDLE_ENVIRONMENT == "sandbox"
+    else "https://api.paddle.com"
 )
-STRIPE_PRICE_ID_PRO_ANNUAL = os.environ.get("STRIPE_PRICE_ID_PRO_ANNUAL", "")
-# Back-compat alias used by existing billing route.
-STRIPE_PRO_PRICE_ID = STRIPE_PRICE_ID_PRO_MONTHLY
 
 # Encryption key for sensitive fields (Fernet symmetric encryption).
 # Generate with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
