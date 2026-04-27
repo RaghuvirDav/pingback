@@ -41,11 +41,17 @@
       {% set total_down_deg = down_count + err_count %}
       <div class="status-hero {% if total_down_deg == 0 %}all-up{% endif %}">
         <div style="position:relative">
+          {% if total_down_deg == 0 %}
           <span class="status-pill">
             <span class="dot"></span>
-            {% if total_down_deg == 0 %}All systems operational
-            {% else %}{{ total_down_deg }} incident{{ 's' if total_down_deg != 1 else '' }}{% endif %}
+            All systems operational
           </span>
+          {% else %}
+          <a href="#monitors" class="status-pill" style="text-decoration:none">
+            <span class="dot"></span>
+            {{ total_down_deg }} incident{{ 's' if total_down_deg != 1 else '' }}
+          </a>
+          {% endif %}
           <h2>
             {% if total_down_deg == 0 %}Everything is humming along nicely.
             {% elif down_count == monitors|length %}Major outage — all monitors down.
