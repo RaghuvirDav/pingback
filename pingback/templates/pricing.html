@@ -62,9 +62,12 @@
           <button class="btn btn-primary btn-full" type="submit">Manage subscription</button>
         </form>
         {% else %}
-        <form method="post" action="/dashboard/billing/checkout" style="margin:18px 0 0">
-          <button class="btn btn-primary btn-full" type="submit">Upgrade to Pro {{ ic.i_arrow_right(14) }}</button>
-        </form>
+        <button class="btn btn-primary btn-full" style="margin-top:18px"
+                type="button" id="paddle-upgrade-btn"
+                {% if not paddle_client_token or not paddle_price_monthly %}disabled
+                title="Billing is not configured"{% endif %}>
+          Upgrade to Pro {{ ic.i_arrow_right(14) }}
+        </button>
         {% endif %}
       {% else %}
       <a class="btn btn-primary btn-full" href="/signup?upgrade=pro" style="margin-top:18px">Start Pro trial {{ ic.i_arrow_right(14) }}</a>
@@ -126,4 +129,22 @@
     <span>Built with FastAPI + SQLite</span>
   </div>
 </div>
+
+{% if user and user.plan != 'pro' and paddle_client_token and paddle_price_monthly %}
+<script src="https://cdn.paddle.com/paddle/v2/paddle.js"></script>
+<script>
+  Paddle.Environment.set("{{ paddle_environment|default('sandbox') }}");
+  Paddle.Initialize({ token: "{{ paddle_client_token }}" });
+
+  document.getElementById("paddle-upgrade-btn")?.addEventListener("click", function () {
+    Paddle.Checkout.open({
+      items: [{ priceId: "{{ paddle_price_monthly }}", quantity: 1 }],
+      customer: { email: "{{ user.email }}" },
+      customData: { pingback_user_id: "{{ user.id }}" },
+      {% if paddle_discount_launch %}discountId: "{{ paddle_discount_launch }}",{% endif %}
+      successUrl: "/dashboard/billing?success=Welcome+to+Pro!"
+    });
+  });
+</script>
+{% endif %}
 {% endblock %}

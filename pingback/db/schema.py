@@ -54,6 +54,18 @@ CREATE INDEX IF NOT EXISTS idx_check_results_checked_at ON check_results(checked
 CREATE INDEX IF NOT EXISTS idx_audit_log_user_id ON audit_log(user_id);
 CREATE INDEX IF NOT EXISTS idx_audit_log_timestamp ON audit_log(timestamp);
 CREATE INDEX IF NOT EXISTS idx_audit_log_action ON audit_log(action);
+
+CREATE TABLE IF NOT EXISTS notification_channels (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    type TEXT NOT NULL, -- 'slack', 'teams', 'telegram', 'whatsapp'
+    config TEXT NOT NULL, -- JSON blob of encrypted config
+    enabled INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_notification_channels_user_id ON notification_channels(user_id);
+CREATE INDEX IF NOT EXISTS idx_notification_channels_enabled ON notification_channels(enabled);
 """
 
 
@@ -90,10 +102,11 @@ MIGRATIONS = [
     # prevent duplicate signups).
     """ALTER TABLE users ADD COLUMN email_hash TEXT""",
     """CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email_hash ON users(email_hash)""",
-    # Stripe subscription renewal timestamp (ISO 8601 UTC).
+    # Subscription renewal timestamp (ISO 8601 UTC). Originally added for
+    # Stripe; reused by the Paddle integration.
     """ALTER TABLE users ADD COLUMN plan_renews_at TEXT""",
-    # Idempotency log for Stripe webhook events. Retries deliver the same
-    # event id, so we record each processed id and reject duplicates.
+    # Legacy Stripe webhook idempotency table — kept so existing rows aren't
+    # lost. New events go to `paddle_events` below.
     """CREATE TABLE IF NOT EXISTS stripe_events (
         id TEXT PRIMARY KEY,
         type TEXT NOT NULL,
@@ -113,6 +126,19 @@ MIGRATIONS = [
     # password_hash yet) gets email_verified=1 so they can keep using the app
     # while they set a password on next login.
     """UPDATE users SET email_verified = 1 WHERE password_hash IS NULL""",
+    # Paddle billing (MAK-82 pivot from Stripe — India-friendly Merchant of
+    # Record). Stripe-named columns are left in place; a follow-up migration
+    # will drop them once nothing reads them.
+    """ALTER TABLE users ADD COLUMN paddle_customer_id TEXT""",
+    """ALTER TABLE users ADD COLUMN paddle_subscription_id TEXT""",
+    # When a Pro user cancels, Paddle keeps them on Pro until plan_cancel_at;
+    # we honour that grace period before flipping plan='free'.
+    """ALTER TABLE users ADD COLUMN plan_cancel_at TEXT""",
+    """CREATE TABLE IF NOT EXISTS paddle_events (
+        id TEXT PRIMARY KEY,
+        type TEXT NOT NULL,
+        received_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )""",
 ]
 
 

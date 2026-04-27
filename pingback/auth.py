@@ -95,14 +95,14 @@ async def _lookup_user(token: str) -> dict | None:
     token_hash = hash_api_key(token)
     # Primary lookup via hash column (encrypted-era keys)
     async with db.execute(
-        "SELECT id, email, name, plan, stripe_customer_id, stripe_subscription_id, email_verified FROM users WHERE api_key_hash = ?",
+        "SELECT id, email, name, plan, paddle_customer_id, paddle_subscription_id, email_verified FROM users WHERE api_key_hash = ?",
         (token_hash,),
     ) as cursor:
         row = await cursor.fetchone()
     if row is None:
         # Fallback: legacy plaintext api_key lookup (pre-encryption data)
         async with db.execute(
-            "SELECT id, email, name, plan, stripe_customer_id, stripe_subscription_id, email_verified FROM users WHERE api_key = ?",
+            "SELECT id, email, name, plan, paddle_customer_id, paddle_subscription_id, email_verified FROM users WHERE api_key = ?",
             (token,),
         ) as cursor:
             row = await cursor.fetchone()
@@ -119,8 +119,8 @@ async def _lookup_user(token: str) -> dict | None:
         "email": decrypt_value(row["email"]),
         "name": row["name"],
         "plan": row["plan"],
-        "stripe_customer_id": row["stripe_customer_id"],
-        "stripe_subscription_id": row["stripe_subscription_id"],
+        "paddle_customer_id": row["paddle_customer_id"],
+        "paddle_subscription_id": row["paddle_subscription_id"],
         "email_verified": bool(row["email_verified"]),
     }
 
@@ -129,7 +129,7 @@ async def lookup_user_by_email(email: str) -> dict | None:
     """Look up a user by (normalised) email. Returns full auth fields."""
     db = await get_database()
     async with db.execute(
-        """SELECT id, email, name, plan, stripe_customer_id, stripe_subscription_id,
+        """SELECT id, email, name, plan, paddle_customer_id, paddle_subscription_id,
                   password_hash, email_verified, api_key, api_key_hash
            FROM users WHERE email_hash = ?""",
         (hash_email(email),),
@@ -142,8 +142,8 @@ async def lookup_user_by_email(email: str) -> dict | None:
         "email": decrypt_value(row["email"]),
         "name": row["name"],
         "plan": row["plan"],
-        "stripe_customer_id": row["stripe_customer_id"],
-        "stripe_subscription_id": row["stripe_subscription_id"],
+        "paddle_customer_id": row["paddle_customer_id"],
+        "paddle_subscription_id": row["paddle_subscription_id"],
         "password_hash": row["password_hash"],
         "email_verified": bool(row["email_verified"]),
         "api_key_encrypted": row["api_key"],
