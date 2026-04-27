@@ -1,6 +1,7 @@
 """Server-rendered dashboard UI routes (Jinja2 + Tailwind)."""
 from __future__ import annotations
 
+import logging
 import secrets
 import uuid
 from datetime import datetime, timezone
@@ -50,6 +51,8 @@ from pingback.session import clear_session, get_session_key, set_session
 
 _TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
 templates = Jinja2Templates(directory=str(_TEMPLATES_DIR))
+
+logger = logging.getLogger("pingback.dashboard")
 
 router = APIRouter()
 
@@ -603,7 +606,7 @@ async def dashboard(request: Request):
     total_checks_24h: int | None = None
     try:
         async with db.execute(
-            "SELECT COUNT(*) AS n FROM checks c "
+            "SELECT COUNT(*) AS n FROM check_results c "
             "JOIN monitors m ON m.id = c.monitor_id "
             "WHERE m.user_id = ? AND c.checked_at >= datetime('now', '-1 day')",
             (user["id"],),
@@ -612,6 +615,7 @@ async def dashboard(request: Request):
             if row:
                 total_checks_24h = row["n"]
     except Exception:
+        logger.exception("dashboard checks_24h query failed")
         total_checks_24h = None
 
     return templates.TemplateResponse(request, "dashboard.html", {
