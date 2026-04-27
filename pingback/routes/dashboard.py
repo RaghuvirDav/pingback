@@ -542,7 +542,9 @@ async def dashboard(request: Request):
     monitors_raw = await find_monitors_with_last_check(db, user["id"])
 
     monitors = []
+    incidents = []
     down_count = 0
+    err_count = 0
     latencies: list[int] = []
     uptimes: list[float] = []
     for mwc in monitors_raw:
@@ -551,15 +553,31 @@ async def dashboard(request: Request):
         current_status = "unknown"
         last_response_ms = None
         last_checked = None
+        last_status_code = None
+        last_error = None
         sparkline = None
         if mwc.last_check:
             current_status = mwc.last_check.status
             last_response_ms = mwc.last_check.response_time_ms
             last_checked = mwc.last_check.checked_at
+            last_status_code = mwc.last_check.status_code
+            last_error = mwc.last_check.error
         if last_response_ms is not None:
             latencies.append(last_response_ms)
-        if current_status in ("down", "error"):
+        if current_status == "down":
             down_count += 1
+        elif current_status == "error":
+            err_count += 1
+        if current_status in ("down", "error"):
+            incidents.append({
+                "id": mwc.id,
+                "name": mwc.name,
+                "url": mwc.url,
+                "status": current_status,
+                "status_code": last_status_code,
+                "error": last_error,
+                "checked_at": last_checked,
+            })
 
         # Sparkline from the 20 most recent samples (server-rendered polyline points)
         rts = await get_response_times(db, mwc.id, limit=20)
@@ -621,7 +639,9 @@ async def dashboard(request: Request):
     return templates.TemplateResponse(request, "dashboard.html", {
         "user": user,
         "monitors": monitors,
+        "incidents": incidents,
         "down_count": down_count,
+        "err_count": err_count,
         "welcome": welcome,
         "overall_uptime": overall_uptime,
         "avg_latency": avg_latency,
