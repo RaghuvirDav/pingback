@@ -1,9 +1,11 @@
 """Billing page + checkout-flow smoke (Stripe calls stubbed via unavailable key)."""
 from __future__ import annotations
 
+from tests.conftest import signup_and_verify
+
 
 def test_billing_page_shows_plans(client):
-    client.post("/signup", data={"email": "billing@example.com"}, follow_redirects=False)
+    signup_and_verify(client, "billing@example.com")
     r = client.get("/dashboard/billing")
     assert r.status_code == 200
     assert "FREE" in r.text
@@ -12,7 +14,7 @@ def test_billing_page_shows_plans(client):
 
 
 def test_billing_page_marks_current_plan_for_free(client):
-    client.post("/signup", data={"email": "current@example.com"}, follow_redirects=False)
+    signup_and_verify(client, "current@example.com")
     r = client.get("/dashboard/billing")
     assert r.status_code == 200
     # The Free plan tile should show "Current plan".
@@ -22,7 +24,7 @@ def test_billing_page_marks_current_plan_for_free(client):
 def test_checkout_without_stripe_key_fails_safely(client):
     """When STRIPE_SECRET_KEY is not configured the checkout endpoint must
     respond with an error (not a 500 or crash)."""
-    client.post("/signup", data={"email": "no-stripe@example.com"}, follow_redirects=False)
+    signup_and_verify(client, "no-stripe@example.com")
     r = client.post("/dashboard/billing/checkout", follow_redirects=False)
     # Either an error flash redirect OR a 4xx/5xx — never a crash.
     assert r.status_code in (200, 303, 400, 500, 503)

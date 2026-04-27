@@ -40,6 +40,38 @@
         </div>
       </div>
 
+      {% if not user.email_verified %}
+      <div class="sep"></div>
+      <div class="card" style="border-left:4px solid var(--warn, #eab308)">
+        <h3 class="section-title">Verify your email</h3>
+        <p class="section-sub">Your email ({{ user.email }}) isn't verified yet. Some actions are limited until you confirm it.</p>
+        <form method="post" action="/dashboard/settings/resend-verification">
+          <button type="submit" class="btn">Resend verification email</button>
+        </form>
+      </div>
+      {% endif %}
+
+      <div class="sep"></div>
+
+      <div class="card">
+        <h3 class="section-title">Password</h3>
+        <p class="section-sub">Change the password you use to sign in.</p>
+        <form method="post" action="/dashboard/settings/change-password">
+          <div class="field">
+            <label for="current_password">Current password</label>
+            <input class="input" type="password" id="current_password" name="current_password" required
+                   autocomplete="current-password">
+          </div>
+          <div class="field">
+            <label for="new_password">New password</label>
+            <input class="input" type="password" id="new_password" name="new_password" required
+                   autocomplete="new-password" minlength="8"
+                   placeholder="At least 8 characters">
+          </div>
+          <button type="submit" class="btn btn-primary">Update password</button>
+        </form>
+      </div>
+
       <div class="sep"></div>
 
       <div class="card">

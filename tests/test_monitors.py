@@ -5,9 +5,8 @@ import re
 
 
 def _signup(client, email="owner@example.com"):
-    r = client.post("/signup", data={"email": email}, follow_redirects=False)
-    assert r.status_code == 303
-    return r
+    from tests.conftest import signup_and_verify
+    signup_and_verify(client, email)
 
 
 def _create_monitor(client, name="Example", url="https://example.com", interval=300, is_public=0):
@@ -96,7 +95,7 @@ def test_ownership_enforced(client):
 
     # Second user shouldn't be able to see or modify the monitor.
     client.post("/logout", follow_redirects=False)
-    client.post("/signup", data={"email": "b@example.com"}, follow_redirects=False)
+    _signup(client, email="b@example.com")
 
     r = client.get(f"/dashboard/monitors/{mid}", follow_redirects=False)
     assert r.status_code in (404, 302, 307)

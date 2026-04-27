@@ -21,8 +21,8 @@ def test_audit_log_written_for_api_request(client, app_ctx):
     from pingback.session import _verify
     from pingback.db.connection import get_database
 
-    r = client.post("/signup", data={"email": "audit@example.com"}, follow_redirects=False)
-    assert r.status_code == 303
+    from tests.conftest import signup_and_verify
+    signup_and_verify(client, "audit@example.com")
     cookie = client.cookies.get("pb_session").strip('"')
     api_key = _verify(cookie)
     headers = {"Authorization": f"Bearer {api_key}"}

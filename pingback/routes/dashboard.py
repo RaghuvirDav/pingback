@@ -10,7 +10,20 @@ from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
-from pingback.auth import _lookup_user, hash_api_key, hash_email
+from pingback.auth import (
+    MIN_PASSWORD_LENGTH,
+    RESET_TTL_HOURS,
+    VERIFICATION_TTL_HOURS,
+    _lookup_user,
+    generate_token,
+    hash_api_key,
+    hash_email,
+    hash_password,
+    is_token_expired,
+    lookup_user_by_email,
+    token_expiry,
+    verify_password,
+)
 from pingback.config import APP_BASE_URL
 from pingback.db.connection import get_database
 from pingback.db.monitors import (
@@ -23,7 +36,11 @@ from pingback.db.monitors import (
     get_check_history,
     get_response_times,
 )
-from pingback.encryption import encrypt_value
+from pingback.encryption import decrypt_value, encrypt_value
+from pingback.services.email import (
+    send_password_reset_email,
+    send_verification_email,
+)
 from pingback.services.plans import (
     PlanLimitExceeded,
     ensure_interval_allowed,
@@ -94,26 +111,117 @@ async def refund(request: Request):
 
 
 # ---------------------------------------------------------------------------
-# Auth pages
+# Auth pages — email + password (MAK-96).
+#
+# API keys still exist and still authenticate the JSON API via Bearer token
+# (see `auth.get_current_user`). They are no longer the UI sign-in credential.
 # ---------------------------------------------------------------------------
+
+_GENERIC_LOGIN_ERROR = "Invalid email or password."
+
+
+def _verify_url(token: str) -> str:
+    return f"{APP_BASE_URL}/verify?token={token}"
+
+
+def _reset_url(token: str) -> str:
+    return f"{APP_BASE_URL}/reset-password?token={token}"
+
+
+async def _issue_verification_token(db, user_id: str) -> str:
+    """Generate + persist a fresh verification token. Returns the plaintext token."""
+    token = generate_token()
+    await db.execute(
+        "UPDATE users SET verification_token = ?, verification_expires_at = ?, updated_at = ? WHERE id = ?",
+        (token, token_expiry(VERIFICATION_TTL_HOURS), datetime.now(timezone.utc).isoformat(), user_id),
+    )
+    await db.commit()
+    return token
+
+
+async def _issue_reset_token(db, user_id: str) -> str:
+    token = generate_token()
+    await db.execute(
+        "UPDATE users SET reset_token = ?, reset_expires_at = ?, updated_at = ? WHERE id = ?",
+        (token, token_expiry(RESET_TTL_HOURS), datetime.now(timezone.utc).isoformat(), user_id),
+    )
+    await db.commit()
+    return token
+
 
 @router.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request):
     user = await _get_ui_user(request)
     if user:
         return _redirect("/dashboard")
-    return templates.TemplateResponse(request, "login.html", {"user": None, "error": None})
+    return templates.TemplateResponse(
+        request, "login.html",
+        {"user": None, "error": None, "notice": request.query_params.get("notice"), "email": ""},
+    )
 
 
 @router.post("/login", response_class=HTMLResponse)
-async def login_submit(request: Request, api_key: str = Form(...)):
-    user = await _lookup_user(api_key)
+async def login_submit(
+    request: Request,
+    email: str = Form(...),
+    password: str = Form(...),
+):
+    user = await lookup_user_by_email(email)
+
+    # Unknown account: show a generic error — don't leak which emails exist.
     if user is None:
         return templates.TemplateResponse(
             request, "login.html",
-            {"user": None, "error": "Invalid API key. Check your key and try again."},
+            {"user": None, "error": _GENERIC_LOGIN_ERROR, "notice": None, "email": email},
             status_code=401,
         )
+
+    # Legacy accounts predating MAK-96 have no password yet. Email them a
+    # set-password link (same mechanism as forgot-password) and tell them to
+    # check their inbox — works even when the user forgot the migration lived.
+    if not user["password_hash"]:
+        db = await get_database()
+        reset_token = await _issue_reset_token(db, user["id"])
+        try:
+            send_password_reset_email(to=user["email"], name=user["name"], reset_url=_reset_url(reset_token))
+        except Exception:
+            pass  # best-effort; token still valid if email transport blips
+        return templates.TemplateResponse(
+            request, "login.html",
+            {
+                "user": None, "error": None,
+                "notice": "This account needs a password. We emailed you a link to set one — check your inbox.",
+                "email": email,
+            },
+            status_code=200,
+        )
+
+    if not verify_password(password, user["password_hash"]):
+        return templates.TemplateResponse(
+            request, "login.html",
+            {"user": None, "error": _GENERIC_LOGIN_ERROR, "notice": None, "email": email},
+            status_code=401,
+        )
+
+    # Correct password but email isn't verified yet — don't log them in.
+    if not user["email_verified"]:
+        db = await get_database()
+        fresh_token = await _issue_verification_token(db, user["id"])
+        try:
+            send_verification_email(to=user["email"], name=user["name"], verify_url=_verify_url(fresh_token))
+        except Exception:
+            pass
+        return templates.TemplateResponse(
+            request, "login.html",
+            {
+                "user": None, "error": None,
+                "notice": "Please verify your email. We just sent you a new verification link.",
+                "email": email,
+            },
+            status_code=200,
+        )
+
+    api_key = decrypt_value(user["api_key_encrypted"])
     response = _redirect("/dashboard")
     set_session(response, api_key)
     return response
@@ -137,9 +245,21 @@ async def signup_page(request: Request):
 async def signup_submit(
     request: Request,
     email: str = Form(...),
+    password: str = Form(...),
     name: str = Form(""),
     upgrade: str = Form(""),
 ):
+    if len(password) < MIN_PASSWORD_LENGTH:
+        return templates.TemplateResponse(
+            request, "signup.html",
+            {
+                "user": None,
+                "error": f"Password must be at least {MIN_PASSWORD_LENGTH} characters.",
+                "email": email, "name": name, "upgrade": upgrade,
+            },
+            status_code=400,
+        )
+
     db = await get_database()
 
     # Dedup by deterministic email hash — Fernet encryption is non-deterministic
@@ -154,9 +274,7 @@ async def signup_submit(
                 {
                     "user": None,
                     "error": "An account with that email already exists.",
-                    "email": email,
-                    "name": name,
-                    "upgrade": upgrade,
+                    "email": email, "name": name, "upgrade": upgrade,
                 },
                 status_code=409,
             )
@@ -164,11 +282,23 @@ async def signup_submit(
     user_id = str(uuid.uuid4())
     api_key = secrets.token_urlsafe(32)
     now = datetime.now(timezone.utc).isoformat()
+    verification_token = generate_token()
 
     await db.execute(
-        """INSERT INTO users (id, email, email_hash, name, plan, api_key, api_key_hash, created_at, updated_at, last_login_at)
-           VALUES (?, ?, ?, ?, 'free', ?, ?, ?, ?, ?)""",
-        (user_id, encrypt_value(email), email_hash_value, name or None, encrypt_value(api_key), hash_api_key(api_key), now, now, now),
+        """INSERT INTO users (
+               id, email, email_hash, name, plan,
+               api_key, api_key_hash,
+               password_hash, email_verified,
+               verification_token, verification_expires_at,
+               created_at, updated_at, last_login_at
+           ) VALUES (?, ?, ?, ?, 'free', ?, ?, ?, 0, ?, ?, ?, ?, ?)""",
+        (
+            user_id, encrypt_value(email), email_hash_value, name or None,
+            encrypt_value(api_key), hash_api_key(api_key),
+            hash_password(password),
+            verification_token, token_expiry(VERIFICATION_TTL_HOURS),
+            now, now, now,
+        ),
     )
 
     # Create default digest preferences
@@ -180,8 +310,198 @@ async def signup_submit(
     )
     await db.commit()
 
+    verify_link = _verify_url(verification_token)
+    if upgrade == "pro":
+        verify_link += "&upgrade=pro"
+    try:
+        send_verification_email(to=email, name=name or None, verify_url=verify_link)
+    except Exception:
+        pass  # best-effort; user can request a resend from /login or /verify/resend
+
+    # Do NOT log the user in — they must click the verification link first.
+    return templates.TemplateResponse(
+        request, "signup_success.html",
+        {
+            "user": None,
+            "email": email,
+            "api_key": api_key,  # one-time reveal — never shown again
+            "upgrade": upgrade,
+        },
+    )
+
+
+@router.get("/verify", response_class=HTMLResponse)
+async def verify_email(request: Request):
+    token = request.query_params.get("token", "").strip()
+    if not token:
+        return templates.TemplateResponse(
+            request, "verify_email.html",
+            {"user": None, "ok": False, "message": "Missing verification token."},
+            status_code=400,
+        )
+
+    db = await get_database()
+    async with db.execute(
+        """SELECT id, email, name, api_key, verification_expires_at, email_verified
+           FROM users WHERE verification_token = ?""",
+        (token,),
+    ) as cur:
+        row = await cur.fetchone()
+
+    if row is None:
+        return templates.TemplateResponse(
+            request, "verify_email.html",
+            {"user": None, "ok": False, "message": "Invalid or already-used verification link."},
+            status_code=400,
+        )
+
+    # Token already consumed (email_verified=1 and token column cleared on success).
+    if is_token_expired(row["verification_expires_at"]):
+        return templates.TemplateResponse(
+            request, "verify_email.html",
+            {"user": None, "ok": False, "message": "This verification link has expired. Sign in and we'll email you a new one."},
+            status_code=400,
+        )
+
+    now = datetime.now(timezone.utc).isoformat()
+    await db.execute(
+        """UPDATE users SET email_verified = 1,
+                            verification_token = NULL, verification_expires_at = NULL,
+                            updated_at = ?, last_login_at = ?
+           WHERE id = ?""",
+        (now, now, row["id"]),
+    )
+    await db.commit()
+
+    # Log them in immediately — the verification click IS the login. Honour
+    # the upgrade=pro intent from the signup form so Pro signups land on the
+    # pricing page ready to checkout.
+    upgrade = request.query_params.get("upgrade", "")
     landing = "/pricing?signed_up=1" if upgrade == "pro" else "/dashboard?welcome=1"
+    api_key = decrypt_value(row["api_key"])
     response = _redirect(landing)
+    set_session(response, api_key)
+    return response
+
+
+@router.post("/verify/resend", response_class=HTMLResponse)
+async def resend_verification(request: Request, email: str = Form(...)):
+    """Send a new verification link by email. Never leaks whether the account exists."""
+    user = await lookup_user_by_email(email)
+    if user and not user["email_verified"]:
+        db = await get_database()
+        fresh_token = await _issue_verification_token(db, user["id"])
+        try:
+            send_verification_email(to=user["email"], name=user["name"], verify_url=_verify_url(fresh_token))
+        except Exception:
+            pass
+    return _redirect("/login?notice=If+the+account+needs+verification%2C+we+sent+a+new+link.")
+
+
+@router.get("/forgot-password", response_class=HTMLResponse)
+async def forgot_password_page(request: Request):
+    if await _get_ui_user(request):
+        return _redirect("/dashboard/settings")
+    return templates.TemplateResponse(
+        request, "forgot_password.html",
+        {"user": None, "notice": None, "error": None},
+    )
+
+
+@router.post("/forgot-password", response_class=HTMLResponse)
+async def forgot_password_submit(request: Request, email: str = Form(...)):
+    user = await lookup_user_by_email(email)
+    # Always show the same confirmation — never leak which emails have accounts.
+    if user is not None:
+        db = await get_database()
+        reset_token = await _issue_reset_token(db, user["id"])
+        try:
+            send_password_reset_email(to=user["email"], name=user["name"], reset_url=_reset_url(reset_token))
+        except Exception:
+            pass
+    return templates.TemplateResponse(
+        request, "forgot_password.html",
+        {
+            "user": None,
+            "notice": "If an account exists for that address, we just emailed a reset link. Check your inbox.",
+            "error": None,
+        },
+    )
+
+
+@router.get("/reset-password", response_class=HTMLResponse)
+async def reset_password_page(request: Request):
+    token = request.query_params.get("token", "").strip()
+    if not token:
+        return templates.TemplateResponse(
+            request, "reset_password.html",
+            {"user": None, "ok": False, "error": "Missing token.", "token": ""},
+            status_code=400,
+        )
+
+    db = await get_database()
+    async with db.execute(
+        "SELECT id, reset_expires_at FROM users WHERE reset_token = ?", (token,)
+    ) as cur:
+        row = await cur.fetchone()
+    if row is None or is_token_expired(row["reset_expires_at"]):
+        return templates.TemplateResponse(
+            request, "reset_password.html",
+            {"user": None, "ok": False, "error": "This reset link is invalid or has expired.", "token": ""},
+            status_code=400,
+        )
+    return templates.TemplateResponse(
+        request, "reset_password.html",
+        {"user": None, "ok": True, "error": None, "token": token},
+    )
+
+
+@router.post("/reset-password", response_class=HTMLResponse)
+async def reset_password_submit(
+    request: Request,
+    token: str = Form(...),
+    password: str = Form(...),
+):
+    if len(password) < MIN_PASSWORD_LENGTH:
+        return templates.TemplateResponse(
+            request, "reset_password.html",
+            {
+                "user": None, "ok": True,
+                "error": f"Password must be at least {MIN_PASSWORD_LENGTH} characters.",
+                "token": token,
+            },
+            status_code=400,
+        )
+
+    db = await get_database()
+    async with db.execute(
+        "SELECT id, email, name, api_key, reset_expires_at FROM users WHERE reset_token = ?",
+        (token,),
+    ) as cur:
+        row = await cur.fetchone()
+    if row is None or is_token_expired(row["reset_expires_at"]):
+        return templates.TemplateResponse(
+            request, "reset_password.html",
+            {"user": None, "ok": False, "error": "This reset link is invalid or has expired.", "token": ""},
+            status_code=400,
+        )
+
+    now = datetime.now(timezone.utc).isoformat()
+    # Reset also implicitly verifies email: the user just demonstrated control
+    # of the inbox by clicking the link.
+    await db.execute(
+        """UPDATE users SET password_hash = ?,
+                            email_verified = 1,
+                            reset_token = NULL, reset_expires_at = NULL,
+                            verification_token = NULL, verification_expires_at = NULL,
+                            updated_at = ?, last_login_at = ?
+           WHERE id = ?""",
+        (hash_password(password), now, now, row["id"]),
+    )
+    await db.commit()
+
+    api_key = decrypt_value(row["api_key"])
+    response = _redirect("/dashboard")
     set_session(response, api_key)
     return response
 
@@ -494,6 +814,49 @@ async def update_notifications(
     )
     await db.commit()
     return _redirect("/dashboard/settings?success=Notification+preferences+saved")
+
+
+@router.post("/dashboard/settings/change-password")
+async def change_password(
+    request: Request,
+    current_password: str = Form(...),
+    new_password: str = Form(...),
+):
+    user = await _get_ui_user(request)
+    if user is None:
+        return _redirect("/login")
+    if len(new_password) < MIN_PASSWORD_LENGTH:
+        return _redirect(f"/dashboard/settings?error=Password+must+be+at+least+{MIN_PASSWORD_LENGTH}+characters.")
+
+    full = await lookup_user_by_email(user["email"])
+    if full is None or not verify_password(current_password, full["password_hash"]):
+        return _redirect("/dashboard/settings?error=Current+password+is+incorrect.")
+
+    db = await get_database()
+    now = datetime.now(timezone.utc).isoformat()
+    await db.execute(
+        "UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?",
+        (hash_password(new_password), now, user["id"]),
+    )
+    await db.commit()
+    return _redirect("/dashboard/settings?success=Password+updated")
+
+
+@router.post("/dashboard/settings/resend-verification")
+async def resend_verification_from_settings(request: Request):
+    user = await _get_ui_user(request)
+    if user is None:
+        return _redirect("/login")
+    if user.get("email_verified"):
+        return _redirect("/dashboard/settings?success=Your+email+is+already+verified")
+
+    db = await get_database()
+    fresh_token = await _issue_verification_token(db, user["id"])
+    try:
+        send_verification_email(to=user["email"], name=user["name"], verify_url=_verify_url(fresh_token))
+    except Exception:
+        return _redirect("/dashboard/settings?error=Could+not+send+verification+email+right+now")
+    return _redirect("/dashboard/settings?success=Verification+email+sent")
 
 
 @router.post("/dashboard/settings/rotate-key")

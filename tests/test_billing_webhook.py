@@ -70,8 +70,8 @@ def _sign(payload: bytes, secret: str = WEBHOOK_SECRET) -> str:
 
 def _signup_with_customer(client, email: str, customer_id: str) -> str:
     """Sign up a user and attach a Stripe customer id. Returns the user id."""
-    r = client.post("/signup", data={"email": email}, follow_redirects=False)
-    assert r.status_code == 303
+    from tests.conftest import signup_and_verify
+    signup_and_verify(client, email)
     con = sqlite3.connect(client.db_path)
     row = con.execute(
         "SELECT id FROM users WHERE email_hash = ?",
@@ -269,8 +269,8 @@ def test_checkout_completed_claims_customer_id(billing_client):
     """If subscription.updated arrives before checkout, /billing/checkout already
     set the customer id. Otherwise, checkout.session.completed should claim it."""
     # Sign up without a customer id.
-    r = billing_client.post("/signup", data={"email": "claim@example.com"}, follow_redirects=False)
-    assert r.status_code == 303
+    from tests.conftest import signup_and_verify
+    signup_and_verify(billing_client, "claim@example.com")
     con = sqlite3.connect(billing_client.db_path)
     row = con.execute(
         "SELECT id FROM users WHERE email_hash = ?", (_hash_email("claim@example.com"),)
