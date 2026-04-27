@@ -12,7 +12,7 @@ Name | Purpose | Default | Required for production?
 `SESSION_COOKIE_SECURE` | Explicit override to flag the session cookie as `Secure` (HTTPS-only). Accepts `1`/`true`/`yes`/`on`. | unset | Yes if TLS is in front of the app and `APP_ENV` != `production`
 `APP_BASE_URL` | Used in email + status URL generation | `http://localhost:8000` | **Yes**
 `PORT` / `HOST` | Uvicorn bind | `8000` / `0.0.0.0` | No
-`RETENTION_DAYS` | Days of check history to keep | `90` | No
+`RETENTION_DAYS` | Operator ceiling on check-history retention; per-plan windows (Free 7d, Pro 90d, Business 1yr) are bounded by this | `365` | No
 `ABANDONED_ACCOUNT_DAYS` | Days inactive before free-tier monitor pause | `30` | No
 `RESEND_API_KEY` + `RESEND_FROM_EMAIL` | Transactional email | empty | Yes if sending digest
 `STRIPE_SECRET_KEY` + `STRIPE_WEBHOOK_SECRET` + `STRIPE_PRO_PRICE_ID` | Billing | empty | Yes for paid plans

@@ -12,18 +12,19 @@ HOST = os.environ.get("HOST", "0.0.0.0")
 DB_PATH = os.environ.get("DB_PATH", "pingback.db")
 DEFAULT_CHECK_INTERVAL = 300  # 5 minutes in seconds
 CHECK_TIMEOUT_SECONDS = 30
-MAX_MONITORS_FREE = 5
-MAX_MONITORS_PRO: int | None = None  # unlimited
-MAX_MONITORS_BUSINESS: int | None = None  # unlimited — matches Pro; Business upsell is intervals/team/API, not monitor count.
+MAX_MONITORS_FREE = 3
+MAX_MONITORS_PRO = 20
+MAX_MONITORS_BUSINESS = 100
 
 # Check intervals per plan (seconds).
 CHECK_INTERVAL_FREE = 300      # 5 minutes
 CHECK_INTERVAL_PRO = 60        # 1 minute
 
-# Per-plan retention of historical check_results (days). Free keeps the last
-# week only; Pro keeps 90 days so trend panels have meaningful history.
+# Per-plan retention of historical check_results (days). Caps are board-firm
+# (MAK-116, 2026-04-27): Free 7d, Pro 90d, Business 1yr.
 HISTORY_DAYS_FREE = 7
 HISTORY_DAYS_PRO = 90
+HISTORY_DAYS_BUSINESS = 365
 
 # Paddle billing configuration (MAK-82 pivoted from Stripe to Paddle MoR).
 # All values come from the Paddle Dashboard; PADDLE_ENVIRONMENT toggles the
@@ -47,8 +48,9 @@ PADDLE_API_BASE_URL = (
 # Generate with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
 ENCRYPTION_KEY = os.environ.get("ENCRYPTION_KEY", "")
 
-# Data retention: number of days to keep check_results before purging.
-RETENTION_DAYS = int(os.environ.get("RETENTION_DAYS", "90"))
+# Operator ceiling on retention. Per-plan windows above are bounded by this
+# value; bumped to 365 so Business's 1-year window is not silently truncated.
+RETENTION_DAYS = int(os.environ.get("RETENTION_DAYS", "365"))
 
 # Days of login inactivity before a free-tier account is considered abandoned.
 # Monitors are paused and check history is deleted to reclaim resources.

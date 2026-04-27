@@ -103,8 +103,8 @@ def test_ownership_enforced(client):
 
 def test_plan_limit_enforced_on_free_tier(client):
     _signup(client)
-    # Free tier cap is 5.
-    for i in range(5):
+    # Free tier cap is 3.
+    for i in range(3):
         r = _create_monitor(client, name=f"M{i}", url=f"https://example{i}.com")
         assert r.status_code == 303
     r = _create_monitor(client, name="TooMany", url="https://too.example.com")
