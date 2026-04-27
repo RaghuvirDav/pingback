@@ -15,7 +15,8 @@ def test_pricing_page_renders_for_guest(client):
     # Both tiers and key facts are shown
     assert "FREE" in r.text and "PRO" in r.text
     assert "$0" in r.text and "$12" in r.text
-    assert "Unlimited monitors" in r.text
+    assert "3 monitors" in r.text
+    assert "20 monitors" in r.text
     assert "60-second" in r.text
     assert "90-day" in r.text
     # Launch promo band per scope
@@ -118,8 +119,8 @@ def test_signup_get_with_upgrade_renders_hidden_field(client):
 
 def test_monitor_limit_error_includes_upgrade_button_for_free(auth_client):
     """When a free user trips the monitor cap, the form shows an Upgrade CTA."""
-    # Free cap is 5; create 5 valid monitors first.
-    for i in range(5):
+    # Free cap is 3; create 3 valid monitors first.
+    for i in range(3):
         r = auth_client.post(
             "/dashboard/monitors/new",
             data={
@@ -131,7 +132,7 @@ def test_monitor_limit_error_includes_upgrade_button_for_free(auth_client):
         )
         assert r.status_code in (200, 302, 303)
 
-    # Sixth attempt should hit the gate.
+    # Fourth attempt should hit the gate.
     r = auth_client.post(
         "/dashboard/monitors/new",
         data={

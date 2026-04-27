@@ -7,6 +7,7 @@ from typing import Optional
 from pingback.config import (
     CHECK_INTERVAL_FREE,
     CHECK_INTERVAL_PRO,
+    HISTORY_DAYS_BUSINESS,
     HISTORY_DAYS_FREE,
     HISTORY_DAYS_PRO,
     MAX_MONITORS_BUSINESS,
@@ -33,12 +34,12 @@ _PLANS: dict[str, PlanLimits] = {
         min_interval_seconds=CHECK_INTERVAL_PRO,
         history_days=HISTORY_DAYS_PRO,
     ),
-    # Business isn't exposed through Stripe Checkout yet; its limits exist so
-    # manually-provisioned business customers keep working.
+    # Business is contact-sales only; limits exist so manually-provisioned
+    # Business customers see the right caps + 1-year retention.
     "business": PlanLimits(
         max_monitors=MAX_MONITORS_BUSINESS,
         min_interval_seconds=CHECK_INTERVAL_PRO,
-        history_days=HISTORY_DAYS_PRO,
+        history_days=HISTORY_DAYS_BUSINESS,
     ),
 }
 
@@ -59,7 +60,7 @@ def ensure_monitor_quota(plan: Optional[str], current_count: int) -> None:
     limit = limits_for(plan).max_monitors
     if limit is not None and current_count >= limit:
         raise PlanLimitExceeded(
-            f"Monitor limit reached ({limit}). Upgrade to Pro for unlimited monitors."
+            f"Monitor limit reached ({limit}). Upgrade to Pro for more monitors."
         )
 
 

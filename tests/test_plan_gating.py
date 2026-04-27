@@ -24,15 +24,22 @@ from pingback.services.plans import (
 # ---------------------------------------------------------------------------
 
 def test_free_plan_monitor_quota():
-    # 4 existing monitors ok; 5 is the cap.
-    ensure_monitor_quota("free", 4)
+    # 2 existing monitors ok; 3 is the cap.
+    ensure_monitor_quota("free", 2)
     with pytest.raises(PlanLimitExceeded):
-        ensure_monitor_quota("free", 5)
+        ensure_monitor_quota("free", 3)
 
 
-def test_pro_plan_monitors_are_unlimited():
-    for n in (0, 50, 5_000):
-        ensure_monitor_quota("pro", n)
+def test_pro_plan_monitor_quota():
+    ensure_monitor_quota("pro", 19)
+    with pytest.raises(PlanLimitExceeded):
+        ensure_monitor_quota("pro", 20)
+
+
+def test_business_plan_monitor_quota():
+    ensure_monitor_quota("business", 99)
+    with pytest.raises(PlanLimitExceeded):
+        ensure_monitor_quota("business", 100)
 
 
 def test_free_plan_interval_floor():
@@ -49,13 +56,14 @@ def test_pro_plan_interval_floor():
 
 
 def test_limits_fallback_to_free_for_unknown_plan():
-    assert limits_for(None).max_monitors == 5
+    assert limits_for(None).max_monitors == 3
     assert limits_for("enterprise").min_interval_seconds == 300
 
 
 def test_history_retention_per_plan():
     assert limits_for("free").history_days == 7
     assert limits_for("pro").history_days == 90
+    assert limits_for("business").history_days == 365
 
 
 # ---------------------------------------------------------------------------
@@ -92,17 +100,17 @@ def test_free_user_api_cannot_set_60s_interval(auth_client):
 def test_free_user_api_blocked_past_quota(auth_client):
     api_key = _api_key(auth_client)
     headers = {"Authorization": f"Bearer {api_key}"}
-    for i in range(5):
+    for i in range(3):
         r = auth_client.post(
             "/api/monitors",
             json={"name": f"m{i}", "url": "https://example.com", "interval_seconds": 300},
             headers=headers,
         )
         assert r.status_code == 201, r.text
-    # 6th must be blocked.
+    # 4th must be blocked.
     r = auth_client.post(
         "/api/monitors",
-        json={"name": "m6", "url": "https://example.com", "interval_seconds": 300},
+        json={"name": "m4", "url": "https://example.com", "interval_seconds": 300},
         headers=headers,
     )
     assert r.status_code == 403

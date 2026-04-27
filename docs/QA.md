@@ -52,7 +52,7 @@ python3 -m pytest tests/ -v
 - [ ] Edit a monitor's interval — verify the seg-control updates hidden input and submits the right value.
 - [ ] Toggle "Show on public status page" and confirm the monitor appears/disappears on `/status/<user_id>`.
 - [ ] Delete a monitor — confirm dialog fires, row disappears, history is gone.
-- [ ] Free plan cap: create 5 monitors; the 6th shows a plan-limit error banner.
+- [ ] Free plan cap: create 3 monitors; the 4th shows a plan-limit error banner.
 
 ## 5. Public status page (black-box)
 
