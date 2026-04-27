@@ -65,7 +65,7 @@
             </div>
             <div>
               <div class="s-label">Checks · 24h</div>
-              <div class="s-value">{{ total_checks_24h if total_checks_24h is defined else '—' }}</div>
+              <div class="s-value">{{ total_checks_24h if total_checks_24h is not none else '—' }}</div>
             </div>
           </div>
         </div>
