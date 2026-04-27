@@ -2,10 +2,16 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timezone
+from typing import Iterable
 
 import resend
 
-from pingback.config import APP_BASE_URL, RESEND_API_KEY, RESEND_FROM_EMAIL
+from pingback.config import (
+    APP_BASE_URL,
+    EMAIL_FROM_DAILY_STATUS,
+    EMAIL_FROM_NOREPLY,
+    RESEND_API_KEY,
+)
 from pingback.db.connection import get_database
 from pingback.db.digest import (
     get_user_digest_stats,
@@ -14,6 +20,49 @@ from pingback.db.digest import (
 )
 
 logger = logging.getLogger("pingback.email")
+
+
+def send_email(
+    *,
+    to: str | Iterable[str],
+    subject: str,
+    text: str | None = None,
+    html: str | None = None,
+    from_email: str | None = None,
+    headers: dict[str, str] | None = None,
+) -> str | None:
+    """Send a transactional email via Resend.
+
+    Env-gated: if `RESEND_API_KEY` is unset we log and no-op, matching the
+    "dev has no email" pattern used elsewhere in the codebase. Returns the
+    Resend message id on success, `None` when skipped, and re-raises on
+    unexpected provider errors so callers can decide whether to retry.
+    """
+    if not RESEND_API_KEY:
+        logger.warning(
+            "RESEND_API_KEY not set — skipping email to %s (subject=%r)", to, subject
+        )
+        return None
+    if text is None and html is None:
+        raise ValueError("send_email requires at least one of `text` or `html`")
+
+    resend.api_key = RESEND_API_KEY
+    params: dict = {
+        "from": from_email or EMAIL_FROM_NOREPLY,
+        "to": [to] if isinstance(to, str) else list(to),
+        "subject": subject,
+    }
+    if html is not None:
+        params["html"] = html
+    if text is not None:
+        params["text"] = text
+    if headers:
+        params["headers"] = headers
+
+    resp = resend.Emails.send(params)
+    message_id = resp.get("id") if isinstance(resp, dict) else getattr(resp, "id", None)
+    logger.info("sent email to %s (subject=%r, id=%s)", params["to"], subject, message_id)
+    return message_id
 
 
 def _build_digest_html(user_name: str | None, stats: dict, unsubscribe_url: str) -> str:
@@ -139,7 +188,7 @@ async def send_daily_digests(current_hour_utc: int) -> int:
             date_str = datetime.now(timezone.utc).strftime("%b %d")
 
             resend.Emails.send({
-                "from": RESEND_FROM_EMAIL,
+                "from": EMAIL_FROM_DAILY_STATUS,
                 "to": [user["email"]],
                 "subject": f"Pingback Digest — {stats['overall_uptime_pct']}% uptime — {date_str}",
                 "html": html,
