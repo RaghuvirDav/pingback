@@ -78,6 +78,38 @@ def test_landing_has_role_main(client):
     assert 'role="main"' in r.text
 
 
+def test_incidents_pill_is_clickable_when_monitor_down(client):
+    """The hero `N incidents` pill must be a link that filters to failing monitors."""
+    import asyncio
+
+    from tests.conftest import signup_and_verify
+
+    signup_and_verify(client, "incidents@example.com")
+    r = client.post(
+        "/dashboard/monitors/new",
+        data={"name": "Down Site", "url": "https://broken.example.com", "interval_seconds": 300, "is_public": 0},
+        follow_redirects=False,
+    )
+    assert r.status_code == 303
+    monitor_id = r.headers["location"].rsplit("/", 1)[-1]
+
+    from pingback.db.connection import get_database
+    from pingback.db.monitors import save_check_result
+
+    async def _seed_down():
+        db = await get_database()
+        await save_check_result(db, monitor_id, "down", 503, 1234, "service unavailable")
+
+    asyncio.run(_seed_down())
+
+    r = client.get("/dashboard")
+    assert r.status_code == 200
+    assert 'class="status-pill is-link"' in r.text
+    assert 'href="?filter=down#monitors"' in r.text
+    assert "1 incident" in r.text
+    assert 'data-status="down"' in r.text
+
+
 def test_terms_page_renders(client):
     r = client.get("/terms")
     assert r.status_code == 200
