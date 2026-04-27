@@ -25,6 +25,13 @@
         </div>
       </div>
 
+      {% if last_error and current_status in ['down', 'error'] %}
+      <div class="card" style="border-left:3px solid var(--danger,#e5484d);background:rgba(229,72,77,0.06);margin-bottom:16px">
+        <div style="font-size:11px;color:var(--fg-3);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:6px">Last check failed</div>
+        <div class="mono small" style="word-break:break-all">{{ last_error }}</div>
+      </div>
+      {% endif %}
+
       <div class="kpis">
         <div class="kpi">
           <div class="k-label">Uptime · 30d</div>
@@ -94,7 +101,7 @@
                   <td class="mono">{{ c.status_code or '—' }}</td>
                   <td class="mono">{% if c.response_time_ms is not none %}{{ c.response_time_ms }}ms{% else %}—{% endif %}</td>
                   <td class="mono" style="color:var(--fg-3)">{{ c.checked_at[:19] }}</td>
-                  <td class="mono small" style="color:var(--down);max-width:340px;word-break:break-word">{{ c.error or '' }}</td>
+                  <td class="mono small" style="max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--fg-3)" title="{{ c.error or '' }}">{{ c.error or '—' }}</td>
                 </tr>
                 {% endfor %}
               </tbody>
