@@ -148,6 +148,11 @@ MIGRATIONS = [
     # recorded it, which silently blocked every digest send.
     """UPDATE users SET consent_given_at = COALESCE(consent_given_at, datetime('now'))
        WHERE id IN (SELECT user_id FROM digest_preferences WHERE enabled = 1)""",
+    # MAK-111: stamp the moment we sent the Pro welcome/receipt email so a
+    # retried subscription.created (different event_id, same sub) doesn't
+    # double-send. Webhook-level idempotency on event_id only catches exact
+    # webhook retries, not Paddle re-emitting the same logical event.
+    """ALTER TABLE users ADD COLUMN pro_welcome_sent_at TEXT""",
 ]
 
 

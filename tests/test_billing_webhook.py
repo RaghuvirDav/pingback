@@ -371,3 +371,187 @@ def test_duplicate_event_id_does_not_double_flip(billing_client):
     assert r2.status_code == 200
     assert r2.json().get("duplicate") is True
     assert _user_plan(billing_client, user_id)[0] == "free"
+
+
+# ---------------------------------------------------------------------------
+# Pro welcome / receipt email (MAK-111)
+# ---------------------------------------------------------------------------
+
+def _welcome_state(client, user_id: str):
+    con = sqlite3.connect(client.db_path)
+    row = con.execute(
+        "SELECT pro_welcome_sent_at FROM users WHERE id = ?",
+        (user_id,),
+    ).fetchone()
+    con.close()
+    return row[0] if row else None
+
+
+def _patch_send_pro_welcome(monkeypatch, calls: list):
+    """Replace the imported `send_pro_welcome_email` symbol on the billing
+    module with a recorder. Patching the source module is not enough — billing
+    binds the name at import time."""
+    from pingback.routes import billing
+
+    def _record(**kwargs):
+        calls.append(kwargs)
+        return "fake-msg-id"
+
+    monkeypatch.setattr(billing, "send_pro_welcome_email", _record)
+
+
+def test_subscription_created_sends_pro_welcome_email_with_plan_summary(billing_client, monkeypatch):
+    from tests.conftest import signup_and_verify
+    signup_and_verify(billing_client, "welcome@example.com", name="Welcome User")
+    con = sqlite3.connect(billing_client.db_path)
+    user_id = con.execute(
+        "SELECT id FROM users WHERE email_hash = ?", (_hash_email("welcome@example.com"),)
+    ).fetchone()[0]
+    con.close()
+
+    calls: list = []
+    _patch_send_pro_welcome(monkeypatch, calls)
+
+    r = _post_event(
+        billing_client,
+        _event(
+            "subscription.created",
+            {
+                "customer_id": "ctm_welcome",
+                "id": "sub_welcome",
+                "status": "active",
+                "currency_code": "USD",
+                "next_billed_at": "2026-05-21T00:00:00Z",
+                "items": [
+                    {
+                        "price": {
+                            "unit_price": {"amount": "1200", "currency_code": "USD"},
+                            "billing_cycle": {"interval": "month", "frequency": 1},
+                        }
+                    }
+                ],
+                "custom_data": {"pingback_user_id": user_id},
+            },
+        ),
+    )
+    assert r.status_code == 200
+    assert len(calls) == 1, f"expected 1 send, got {len(calls)}"
+    sent = calls[0]
+    assert sent["to"] == "welcome@example.com"
+    assert sent["name"] == "Welcome User"
+    assert sent["amount_display"] == "USD 12.00/month"
+    assert sent["next_billed_display"] == "May 21, 2026"
+    assert _welcome_state(billing_client, user_id) is not None
+
+
+def test_subscription_created_does_not_resend_welcome_when_already_stamped(billing_client, monkeypatch):
+    user_id = _signup_with_customer(billing_client, "noresend@example.com", "ctm_noresend")
+    con = sqlite3.connect(billing_client.db_path)
+    con.execute(
+        "UPDATE users SET pro_welcome_sent_at = '2026-04-27T00:00:00+00:00' WHERE id = ?",
+        (user_id,),
+    )
+    con.commit()
+    con.close()
+
+    calls: list = []
+    _patch_send_pro_welcome(monkeypatch, calls)
+
+    r = _post_event(
+        billing_client,
+        _event(
+            "subscription.created",
+            {
+                "customer_id": "ctm_noresend",
+                "id": "sub_noresend",
+                "status": "active",
+                "next_billed_at": "2026-05-21T00:00:00Z",
+            },
+        ),
+    )
+    assert r.status_code == 200
+    assert calls == []
+
+
+def test_subscription_created_with_missing_price_data_still_sends_welcome(billing_client, monkeypatch):
+    """A bare subscription.created (no items/currency) should still send the
+    welcome email — we just skip the plan-summary line rather than fail."""
+    user_id = _signup_with_customer(billing_client, "bare@example.com", "ctm_bare")
+
+    calls: list = []
+    _patch_send_pro_welcome(monkeypatch, calls)
+
+    r = _post_event(
+        billing_client,
+        _event(
+            "subscription.created",
+            {"customer_id": "ctm_bare", "id": "sub_bare", "status": "active"},
+        ),
+    )
+    assert r.status_code == 200
+    assert len(calls) == 1
+    assert calls[0]["amount_display"] is None
+    assert calls[0]["next_billed_display"] is None
+
+
+def test_subscription_created_email_failure_does_not_break_webhook(billing_client, monkeypatch):
+    """Resend outage should not 500 the webhook — Paddle will retry the event
+    indefinitely otherwise. We stamp pro_welcome_sent_at *before* the send so
+    a transient failure does not produce a duplicate-send loop on retry."""
+    user_id = _signup_with_customer(billing_client, "boom@example.com", "ctm_boom")
+
+    from pingback.routes import billing as billing_module
+
+    def _explode(**kwargs):
+        raise RuntimeError("resend down")
+
+    monkeypatch.setattr(billing_module, "send_pro_welcome_email", _explode)
+
+    r = _post_event(
+        billing_client,
+        _event(
+            "subscription.created",
+            {"customer_id": "ctm_boom", "id": "sub_boom", "status": "active"},
+        ),
+    )
+    assert r.status_code == 200
+    # Stamped despite the send failing — prevents Paddle webhook retries from
+    # producing duplicate sends if the provider recovers between attempts.
+    assert _welcome_state(billing_client, user_id) is not None
+
+
+def test_subscription_updated_does_not_send_welcome(billing_client, monkeypatch):
+    """Only subscription.created triggers the welcome email. Plan changes /
+    renewals must not re-send."""
+    user_id = _signup_with_customer(billing_client, "renew@example.com", "ctm_renew")
+
+    calls: list = []
+    _patch_send_pro_welcome(monkeypatch, calls)
+
+    r = _post_event(
+        billing_client,
+        _event(
+            "subscription.updated",
+            {"customer_id": "ctm_renew", "id": "sub_renew", "status": "active"},
+        ),
+    )
+    assert r.status_code == 200
+    assert calls == []
+    assert _welcome_state(billing_client, user_id) is None
+
+
+def test_subscription_created_for_unknown_customer_does_not_send(billing_client, monkeypatch):
+    """Defensive: if the customer isn't claimed yet (no local user row) we log
+    and skip rather than crash."""
+    calls: list = []
+    _patch_send_pro_welcome(monkeypatch, calls)
+
+    r = _post_event(
+        billing_client,
+        _event(
+            "subscription.created",
+            {"customer_id": "ctm_orphan", "id": "sub_orphan", "status": "active"},
+        ),
+    )
+    assert r.status_code == 200
+    assert calls == []
