@@ -14,7 +14,7 @@ DEFAULT_CHECK_INTERVAL = 300  # 5 minutes in seconds
 CHECK_TIMEOUT_SECONDS = 30
 MAX_MONITORS_FREE = 5
 MAX_MONITORS_PRO: int | None = None  # unlimited
-MAX_MONITORS_BUSINESS = 200
+MAX_MONITORS_BUSINESS: int | None = None  # unlimited — matches Pro; Business upsell is intervals/team/API, not monitor count.
 
 # Check intervals per plan (seconds).
 CHECK_INTERVAL_FREE = 300      # 5 minutes
