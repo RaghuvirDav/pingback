@@ -142,7 +142,9 @@
       customer: { email: "{{ user.email }}" },
       customData: { pingback_user_id: "{{ user.id }}" },
       {% if paddle_discount_launch %}discountId: "{{ paddle_discount_launch }}",{% endif %}
-      successUrl: "/dashboard/billing?success=Welcome+to+Pro!"
+      settings: {
+        successUrl: "{{ app_base_url }}/dashboard/billing?success=Welcome+to+Pro!"
+      }
     });
   });
 </script>
