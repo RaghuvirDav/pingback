@@ -95,14 +95,18 @@ async def _lookup_user(token: str) -> dict | None:
     token_hash = hash_api_key(token)
     # Primary lookup via hash column (encrypted-era keys)
     async with db.execute(
-        "SELECT id, email, name, plan, paddle_customer_id, paddle_subscription_id, email_verified FROM users WHERE api_key_hash = ?",
+        """SELECT id, email, name, plan, paddle_customer_id, paddle_subscription_id,
+                  plan_renews_at, plan_cancel_at, email_verified
+             FROM users WHERE api_key_hash = ?""",
         (token_hash,),
     ) as cursor:
         row = await cursor.fetchone()
     if row is None:
         # Fallback: legacy plaintext api_key lookup (pre-encryption data)
         async with db.execute(
-            "SELECT id, email, name, plan, paddle_customer_id, paddle_subscription_id, email_verified FROM users WHERE api_key = ?",
+            """SELECT id, email, name, plan, paddle_customer_id, paddle_subscription_id,
+                      plan_renews_at, plan_cancel_at, email_verified
+                 FROM users WHERE api_key = ?""",
             (token,),
         ) as cursor:
             row = await cursor.fetchone()
@@ -121,6 +125,8 @@ async def _lookup_user(token: str) -> dict | None:
         "plan": row["plan"],
         "paddle_customer_id": row["paddle_customer_id"],
         "paddle_subscription_id": row["paddle_subscription_id"],
+        "plan_renews_at": row["plan_renews_at"],
+        "plan_cancel_at": row["plan_cancel_at"],
         "email_verified": bool(row["email_verified"]),
     }
 
