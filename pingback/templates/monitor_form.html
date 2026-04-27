@@ -41,13 +41,17 @@
           </div>
           <div class="field">
             <label>Check interval <span class="hint">how often we ping it</span></label>
-            {% set iv = monitor.interval_seconds if monitor else 300 %}
+            {% set iv = monitor.interval_seconds if monitor else (allowed_intervals[0].seconds if allowed_intervals else 300) %}
             <div class="seg" role="radiogroup" aria-label="Check interval">
-              {% for opt in [(60,'60s'),(300,'5m'),(600,'10m'),(1800,'30m'),(3600,'1h')] %}
-              <button type="button" data-interval="{{ opt[0] }}" class="{{ 'active' if iv == opt[0] else '' }}">{{ opt[1] }}</button>
+              {% for opt in allowed_intervals %}
+              <button type="button" data-interval="{{ opt.seconds }}" class="{{ 'active' if iv == opt.seconds else '' }}">{{ opt.label }}</button>
               {% endfor %}
             </div>
             <input type="hidden" id="interval_seconds" name="interval_seconds" value="{{ iv }}">
+            <div class="muted small" style="margin-top:6px">
+              Your <strong>{{ user.plan|upper }}</strong> plan can poll as fast as
+              <strong>{% if plan_floor_seconds < 60 %}{{ plan_floor_seconds }} sec{% elif plan_floor_seconds % 60 == 0 %}{{ plan_floor_seconds // 60 }} min{% else %}{{ plan_floor_seconds }} sec{% endif %}</strong>.{% if user.plan == 'free' %} <a href="/pricing">Upgrade</a> for faster checks.{% endif %}
+            </div>
           </div>
           <div class="field">
             <label>Pass condition</label>

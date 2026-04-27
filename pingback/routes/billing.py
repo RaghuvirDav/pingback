@@ -36,6 +36,14 @@ from pingback.db.connection import get_database
 from pingback.encryption import decrypt_value
 from pingback.routes.dashboard import _digest_timezone_options, _get_ui_user, _redirect
 from pingback.services.email import send_pro_welcome_email
+from pingback.services.plans import min_interval_for_plan
+
+
+def _interval_label(seconds: int) -> str:
+    if seconds % 60 == 0:
+        minutes = seconds // 60
+        return "1 min" if minutes == 1 else f"{minutes} min"
+    return f"{seconds} sec"
 
 _TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
 templates = Jinja2Templates(directory=str(_TEMPLATES_DIR))
@@ -64,6 +72,7 @@ async def billing_page(request: Request):
             digest_enabled = bool(row["enabled"])
 
     user_timezone = user.get("timezone") or "Etc/UTC"
+    floor_seconds = min_interval_for_plan(user.get("plan"))
 
     return templates.TemplateResponse(request, "billing.html", {
         "user": user,
@@ -76,6 +85,8 @@ async def billing_page(request: Request):
         "user_timezone": user_timezone,
         "timezone_options": _digest_timezone_options(user_timezone),
         "app_base_url": APP_BASE_URL,
+        "plan_floor_seconds": floor_seconds,
+        "plan_floor_label": _interval_label(floor_seconds),
         "success": request.query_params.get("success"),
         "error": request.query_params.get("error"),
     })

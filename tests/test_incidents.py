@@ -49,8 +49,8 @@ def test_pill_anchors_to_incidents_when_failing(client):
     )
     r = client.get("/dashboard")
     assert r.status_code == 200
-    # Pill links to #incidents (not the old #monitors anchor) when failing.
-    assert 'href="#incidents"' in r.text
+    # MAK-107 reframed the pill to filter the monitor list to failing only.
+    assert 'href="?filter=down#monitors"' in r.text
     assert "1 incident" in r.text
     # The incidents panel renders.
     assert 'id="incidents"' in r.text

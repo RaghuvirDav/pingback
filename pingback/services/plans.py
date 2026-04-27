@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 from pingback.config import (
+    CHECK_INTERVAL_BUSINESS,
     CHECK_INTERVAL_FREE,
     CHECK_INTERVAL_PRO,
     HISTORY_DAYS_BUSINESS,
@@ -38,7 +39,7 @@ _PLANS: dict[str, PlanLimits] = {
     # Business customers see the right caps + 1-year retention.
     "business": PlanLimits(
         max_monitors=MAX_MONITORS_BUSINESS,
-        min_interval_seconds=CHECK_INTERVAL_PRO,
+        min_interval_seconds=CHECK_INTERVAL_BUSINESS,
         history_days=HISTORY_DAYS_BUSINESS,
     ),
 }
@@ -46,6 +47,29 @@ _PLANS: dict[str, PlanLimits] = {
 
 def limits_for(plan: Optional[str]) -> PlanLimits:
     return _PLANS.get(plan or "free", _PLANS["free"])
+
+
+def min_interval_for_plan(plan: Optional[str]) -> int:
+    """Return the *floor* (fastest allowed) check interval for a plan, seconds."""
+    return limits_for(plan).min_interval_seconds
+
+
+# Discrete picklist offered to users in the monitor form. Anything below the
+# user's plan floor is filtered out at render time. 30s is the BUSINESS floor;
+# 60s is the PRO floor; 300s is the FREE floor — picklist is sparse on purpose
+# so the UI stays scannable.
+_INTERVAL_PICKLIST: tuple[int, ...] = (30, 60, 300, 600, 900, 1800, 3600)
+
+
+def allowed_intervals_for_plan(plan: Optional[str]) -> list[int]:
+    """Discrete intervals (seconds) a user on `plan` may pick from in the UI.
+
+    Server-side validation (`ensure_interval_allowed`) is still the source of
+    truth — this picklist exists purely to keep the form scannable and stop
+    users picking values their plan would reject.
+    """
+    floor = min_interval_for_plan(plan)
+    return [i for i in _INTERVAL_PICKLIST if i >= floor]
 
 
 class PlanLimitExceeded(Exception):
