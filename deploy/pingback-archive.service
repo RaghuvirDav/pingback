@@ -1,0 +1,18 @@
+[Unit]
+Description=Pingback nightly check_results S3 archive
+After=pingback-backup.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=pingback
+Group=pingback
+WorkingDirectory=/opt/pingback
+EnvironmentFile=/opt/pingback/.env
+ExecStart=/opt/pingback/venv/bin/python /opt/pingback/scripts/archive_check_results.py
+StandardOutput=journal
+StandardError=journal
+Nice=10
+
+[Install]
+WantedBy=multi-user.target

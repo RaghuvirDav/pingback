@@ -1,0 +1,13 @@
+[Unit]
+Description=Pingback nightly check_results S3 archive (04:15 UTC)
+
+[Timer]
+# Runs after the 03:30 UTC sqlite backup so the snapshot still contains
+# the rows we're about to drop locally.
+OnCalendar=*-*-* 04:15:00 UTC
+Persistent=true
+RandomizedDelaySec=600
+Unit=pingback-archive.service
+
+[Install]
+WantedBy=timers.target

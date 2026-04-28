@@ -100,6 +100,25 @@ CREATE TABLE IF NOT EXISTS check_results_1h (
     FOREIGN KEY (monitor_id) REFERENCES monitors(id) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS idx_check_results_1h_window ON check_results_1h(window_start);
+
+-- MAK-149: per-(monitor, year, month) record of raw check_results that have
+-- been archived to S3 and deleted from sqlite. Presence of a row means the
+-- corresponding partition is in S3 and the local rows are gone — re-running
+-- the archiver skips months already logged here.
+CREATE TABLE IF NOT EXISTS check_results_archive_log (
+    monitor_id TEXT NOT NULL,
+    year_month TEXT NOT NULL,        -- 'YYYY-MM' (UTC)
+    s3_bucket TEXT NOT NULL,
+    s3_key TEXT NOT NULL,
+    row_count INTEGER NOT NULL,
+    bytes_uploaded INTEGER NOT NULL,
+    sha256 TEXT NOT NULL,
+    archived_at TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (monitor_id, year_month),
+    FOREIGN KEY (monitor_id) REFERENCES monitors(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_archive_log_year_month ON check_results_archive_log(year_month);
+
 CREATE INDEX IF NOT EXISTS idx_audit_log_user_id ON audit_log(user_id);
 CREATE INDEX IF NOT EXISTS idx_audit_log_timestamp ON audit_log(timestamp);
 CREATE INDEX IF NOT EXISTS idx_audit_log_action ON audit_log(action);

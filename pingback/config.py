@@ -87,6 +87,15 @@ AWS_ACCESS_KEY_ID = os.environ.get("AWS_ACCESS_KEY_ID", "")
 AWS_SECRET_ACCESS_KEY = os.environ.get("AWS_SECRET_ACCESS_KEY", "")
 AWS_DEFAULT_REGION = os.environ.get("AWS_DEFAULT_REGION", "us-east-1")
 
+# MAK-149: nightly archive of raw check_results to S3 once rows pass this age.
+# Rollups (1m/5m/1h) keep dashboard reads fast for the cold tail; raw rows are
+# only needed for forensic export. Empty `ARCHIVE_S3_BUCKET` disables the
+# archiver — dev/CI default. `ARCHIVE_S3_PREFIX` lets us share a bucket with
+# the sqlite-backup pipeline without colliding.
+ARCHIVE_AFTER_DAYS = int(os.environ.get("ARCHIVE_AFTER_DAYS", "90"))
+ARCHIVE_S3_BUCKET = os.environ.get("ARCHIVE_S3_BUCKET", "")
+ARCHIVE_S3_PREFIX = os.environ.get("ARCHIVE_S3_PREFIX", "archive/check_results")
+
 # Sentry error tracking (free tier — 5k events/mo).
 # Leave SENTRY_DSN empty to disable. No-op safe for local dev.
 SENTRY_DSN = os.environ.get("SENTRY_DSN", "")
