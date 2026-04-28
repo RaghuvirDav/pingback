@@ -141,6 +141,28 @@ async def save_check_result(
     )
 
 
+async def get_last_check_times(
+    db: aiosqlite.Connection, monitor_ids: list[str]
+) -> dict[str, str]:
+    """Return {monitor_id: latest checked_at} for the given monitors (MAK-148).
+
+    Single batch query so the scheduler can fan-out due-evaluation in O(1)
+    instead of O(N) reads per tick. Monitors with no check_results are
+    omitted from the dict.
+    """
+    if not monitor_ids:
+        return {}
+    placeholders = ",".join("?" * len(monitor_ids))
+    async with db.execute(
+        f"SELECT monitor_id, MAX(checked_at) AS checked_at "
+        f"FROM check_results WHERE monitor_id IN ({placeholders}) "
+        f"GROUP BY monitor_id",
+        monitor_ids,
+    ) as cursor:
+        rows = await cursor.fetchall()
+    return {r["monitor_id"]: r["checked_at"] for r in rows}
+
+
 async def get_last_check(db: aiosqlite.Connection, monitor_id: str) -> Optional[CheckResult]:
     async with db.execute(
         "SELECT id, monitor_id, status, status_code, response_time_ms, error, checked_at FROM check_results WHERE monitor_id = ? ORDER BY checked_at DESC LIMIT 1",
