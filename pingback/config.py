@@ -102,3 +102,16 @@ DEBUG_BOOM_ENABLED = os.environ.get("DEBUG_BOOM_ENABLED", "").lower() in (
     "yes",
     "on",
 )
+
+# Comma-separated list of email addresses with access to /admin (MAK-142).
+# Empty = admin route is fully closed (every request 404s). Compared
+# case-insensitively against the logged-in session email.
+ADMIN_EMAILS = frozenset(
+    e.strip().lower()
+    for e in os.environ.get("ADMIN_EMAILS", "").split(",")
+    if e.strip()
+)
+
+# Optional link out from the admin errors panel to the Sentry project view.
+# Leave blank to hide the button.
+SENTRY_DASHBOARD_URL = os.environ.get("SENTRY_DASHBOARD_URL", "")
