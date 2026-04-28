@@ -20,10 +20,14 @@ logger = logging.getLogger("pingback.scheduler")
 
 TICK_INTERVAL_SECONDS = 10
 _PURGE_INTERVAL_SECONDS = 86400  # Run retention purge once per day
+# MAK-126: digest evaluation runs every 15 minutes. The eligibility filter
+# uses a ±7-minute window around 08:00 local, so each user is matched by
+# at most one tick per day. Worst-case delivery latency: ~15 minutes.
+_DIGEST_TICK_SECONDS = 15 * 60
 
 _task: asyncio.Task | None = None
 _last_purge_time: float = 0
-_last_digest_hour: int = -1
+_last_digest_tick_at: float = 0
 
 
 async def _tick() -> None:
@@ -75,19 +79,19 @@ async def _maybe_purge() -> None:
 
 
 async def _maybe_send_digests() -> None:
-    """Evaluate digest delivery once per UTC hour (and once on startup).
+    """Evaluate digest delivery on a 15-minute cadence (MAK-126).
 
-    The per-user filter happens inside `send_daily_digests`, which compares
-    each user's preferred local hour against `now_utc`. We still gate on the
-    UTC hour here so we don't pay the DB scan every 10s; the catch-up case
-    (service restart that crossed a user's send hour) is handled by the
-    `>=`-based eligibility check inside the query, not by re-firing here.
+    The per-user filter inside `send_daily_digests` matches users whose local
+    time is within ±7 minutes of 08:00 — pairing that with a 15-minute tick
+    keeps worst-case delivery latency at ~15 minutes (down from ~60 with the
+    previous hourly tick) without paying the DB scan every 10 seconds.
     """
-    global _last_digest_hour
+    global _last_digest_tick_at
     now_utc = datetime.now(timezone.utc)
-    if now_utc.hour == _last_digest_hour:
+    now_ts = now_utc.timestamp()
+    if now_ts - _last_digest_tick_at < _DIGEST_TICK_SECONDS:
         return
-    _last_digest_hour = now_utc.hour
+    _last_digest_tick_at = now_ts
     try:
         await send_daily_digests(now_utc)
     except Exception:

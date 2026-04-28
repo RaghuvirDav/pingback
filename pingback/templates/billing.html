@@ -79,6 +79,35 @@
         </div>
       </div>
 
+      <div class="sep"></div>
+
+      <div class="card">
+        <h3 class="section-title">Notifications</h3>
+        <p class="section-sub">Daily digest at 08:00 in your timezone.</p>
+        <form method="post" action="/dashboard/settings/notifications">
+          <input type="hidden" name="redirect_to" value="/dashboard/billing">
+          <label class="row" style="justify-content:space-between;background:var(--bg-2);padding:12px 14px;border-radius:10px;border:1px solid var(--line);margin-bottom:14px;cursor:pointer">
+            <div>
+              <div style="font-size:14px;font-weight:500">Daily digest email</div>
+              <div class="muted small" style="margin-top:2px">Summary of uptime and incidents, delivered once per day at 08:00 local time.</div>
+            </div>
+            <input type="checkbox" id="digest_enabled" name="digest_enabled" value="1"
+                   {{ 'checked' if digest_enabled else '' }}
+                   style="width:18px;height:18px;accent-color:var(--accent)">
+          </label>
+          <div class="field" style="margin:0">
+            <label for="timezone_name">Timezone</label>
+            <select class="input" id="timezone_name" name="timezone_name" style="width:100%">
+              {% for tz in timezone_options %}
+              <option value="{{ tz }}" {{ 'selected' if user_timezone == tz else '' }}>{{ tz }}</option>
+              {% endfor %}
+            </select>
+            <div class="muted small" style="margin-top:6px">Daily digest at 08:00 in your timezone.</div>
+          </div>
+          <button type="submit" class="btn btn-primary" style="margin-top:14px">Save preferences</button>
+        </form>
+      </div>
+
       {% if user.plan == 'pro' %}
       <div class="card">
         <h3 class="section-title">Current subscription</h3>

@@ -10,20 +10,22 @@ def test_settings_page_renders(client):
     assert r.status_code == 200
     assert "Settings" in r.text
     assert "settings@example.com" in r.text
-    assert "Daily digest" in r.text
+    # MAK-126 moved digest controls to the Billing page; settings now only
+    # links over to /dashboard/billing.
+    assert "/dashboard/billing" in r.text
 
 
 def test_notification_preferences_persist(client):
     signup_and_verify(client, "notifs@example.com")
     r = client.post(
         "/dashboard/settings/notifications",
-        data={"digest_enabled": "1", "send_hour_utc": "17"},
+        data={"digest_enabled": "1", "timezone_name": "Asia/Kolkata"},
         follow_redirects=False,
     )
     assert r.status_code == 303
-    r = client.get("/dashboard/settings")
-    # The form uses <select> — verify 17 option is selected.
-    assert 'value="17" selected' in r.text
+    # Picker now lives on billing.
+    r = client.get("/dashboard/billing")
+    assert 'value="Asia/Kolkata" selected' in r.text
 
 
 def test_rotate_api_key_via_ui(client):

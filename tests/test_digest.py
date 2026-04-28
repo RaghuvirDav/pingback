@@ -84,26 +84,33 @@ def test_due_user_in_local_tz_only_at_local_send_hour(client):
     _seed_active_monitor(user_id)
     _set_user_tz(user_id, "America/New_York")  # UTC-4 in April (EDT)
 
-    # send_hour_utc=8 (interpreted as local hour). 11:00 UTC = 07:00 EDT — not yet due.
+    # 11:30 UTC = 07:30 EDT — outside the ±7 min window around 08:00 local.
     not_due = _due_users(datetime(2026, 4, 28, 11, 30, tzinfo=timezone.utc))
     assert all(u["id"] != user_id for u in not_due)
 
-    # 12:00 UTC = 08:00 EDT — due.
+    # 12:00 UTC = 08:00 EDT — inside the window.
     due = _due_users(datetime(2026, 4, 28, 12, 0, tzinfo=timezone.utc))
     assert any(u["id"] == user_id for u in due)
 
+    # 12:05 UTC = 08:05 EDT — still inside the ±7 min window.
+    due_edge = _due_users(datetime(2026, 4, 28, 12, 5, tzinfo=timezone.utc))
+    assert any(u["id"] == user_id for u in due_edge)
 
-def test_catch_up_after_missed_hour(client):
-    """If the service was down across the user's send hour, they should
-    still be eligible later that local day. This is the regression fix
-    behind today's missed 08:00 UTC delivery."""
+    # 12:15 UTC = 08:15 EDT — outside the window again.
+    past = _due_users(datetime(2026, 4, 28, 12, 15, tzinfo=timezone.utc))
+    assert all(u["id"] != user_id for u in past)
+
+
+def test_match_window_is_narrow_no_catch_up(client):
+    """MAK-126: with the ±7 min window the scheduler no longer catches up
+    on missed sends — the spec accepts that in exchange for ≤15 min latency
+    when the scheduler is healthy."""
     signup_and_verify(client, "catchup@example.com")
     user_id = _user_id(client, "catchup@example.com")
     _seed_active_monitor(user_id)
-    # Etc/UTC user, send_hour_utc=8, never sent.
-    # Evaluating at 09:30 UTC on a fresh account: local hour 9 >= 8, last_sent_at NULL.
+    # Etc/UTC user, never sent. 09:30 UTC is well past 08:00 ± 7 min.
     due = _due_users(datetime(2026, 4, 28, 9, 30, tzinfo=timezone.utc))
-    assert any(u["id"] == user_id for u in due)
+    assert all(u["id"] != user_id for u in due)
 
 
 def test_skipped_when_already_sent_today(client):
@@ -113,7 +120,9 @@ def test_skipped_when_already_sent_today(client):
     user_id = _user_id(client, "alreadysent@example.com")
     _seed_active_monitor(user_id)
 
-    sent_at = datetime(2026, 4, 28, 8, 1, tzinfo=timezone.utc).isoformat()
+    # Sent earlier today (07:55 UTC). Re-evaluate inside the 08:00 ± 7 min
+    # window — user must NOT be re-matched even though the time window fits.
+    sent_at = datetime(2026, 4, 28, 7, 55, tzinfo=timezone.utc).isoformat()
     with sqlite3.connect(DB_PATH) as conn:
         conn.execute(
             "UPDATE digest_preferences SET last_sent_at = ? WHERE user_id = ?",
@@ -121,52 +130,87 @@ def test_skipped_when_already_sent_today(client):
         )
         conn.commit()
 
-    due = _due_users(datetime(2026, 4, 28, 9, 0, tzinfo=timezone.utc))
+    due = _due_users(datetime(2026, 4, 28, 8, 0, tzinfo=timezone.utc))
     assert all(u["id"] != user_id for u in due)
 
 
 def test_user_with_no_active_monitors_not_due(client):
     signup_and_verify(client, "nomonitors@example.com")
     user_id = _user_id(client, "nomonitors@example.com")
-    # Intentionally no monitors seeded.
-    due = _due_users(datetime(2026, 4, 28, 9, 0, tzinfo=timezone.utc))
+    # Intentionally no monitors seeded. Evaluate inside the match window.
+    due = _due_users(datetime(2026, 4, 28, 8, 0, tzinfo=timezone.utc))
     assert all(u["id"] != user_id for u in due)
 
 
-def test_settings_post_persists_timezone(client):
+def test_billing_post_persists_timezone(client):
     signup_and_verify(client, "tzpicker@example.com")
     r = client.post(
         "/dashboard/settings/notifications",
         data={
             "digest_enabled": "1",
-            "send_hour_utc": "8",
             "timezone_name": "Asia/Kolkata",
+            "redirect_to": "/dashboard/billing",
         },
         follow_redirects=False,
     )
     assert r.status_code == 303
+    assert r.headers["location"].startswith("/dashboard/billing")
 
     user_id = _user_id(client, "tzpicker@example.com")
     row = _db_row(client, "SELECT timezone FROM users WHERE id = ?", user_id)
     assert row["timezone"] == "Asia/Kolkata"
 
-    r = client.get("/dashboard/settings")
+    r = client.get("/dashboard/billing")
     assert 'value="Asia/Kolkata" selected' in r.text
 
 
-def test_settings_post_rejects_unknown_timezone(client):
+def test_notifications_post_rejects_unknown_timezone(client):
     signup_and_verify(client, "badtz@example.com")
     r = client.post(
         "/dashboard/settings/notifications",
         data={
             "digest_enabled": "1",
-            "send_hour_utc": "8",
             "timezone_name": "Mars/Olympus_Mons",
+            "redirect_to": "/dashboard/billing",
         },
         follow_redirects=False,
     )
     assert r.status_code == 303
     assert "Unknown+timezone" in r.headers["location"]
+
+
+def test_api_users_me_timezone_seeds_default(client):
+    signup_and_verify(client, "seedtz@example.com")
+    user_id = _user_id(client, "seedtz@example.com")
+    # User is Etc/UTC by default; browser-detect should overwrite.
+    r = client.post("/api/users/me/timezone", json={"timezone": "Asia/Kolkata"})
+    assert r.status_code == 200
+    assert r.json() == {"updated": True, "timezone": "Asia/Kolkata"}
+    row = _db_row(client, "SELECT timezone FROM users WHERE id = ?", user_id)
+    assert row["timezone"] == "Asia/Kolkata"
+
+
+def test_api_users_me_timezone_does_not_clobber_explicit_pick(client):
+    signup_and_verify(client, "keeptz@example.com")
+    user_id = _user_id(client, "keeptz@example.com")
+    _set_user_tz(user_id, "Europe/Berlin")
+    r = client.post("/api/users/me/timezone", json={"timezone": "Asia/Kolkata"})
+    assert r.status_code == 200
+    assert r.json()["updated"] is False
+    row = _db_row(client, "SELECT timezone FROM users WHERE id = ?", user_id)
+    assert row["timezone"] == "Europe/Berlin"
+
+
+def test_api_users_me_timezone_rejects_unknown(client):
+    signup_and_verify(client, "badseed@example.com")
+    r = client.post("/api/users/me/timezone", json={"timezone": "Mars/Olympus_Mons"})
+    assert r.status_code == 400
+
+
+def test_api_users_me_timezone_requires_auth(client):
+    client.cookies.clear()
+    r = client.post("/api/users/me/timezone", json={"timezone": "Asia/Kolkata"})
+    assert r.status_code == 401
 
 
 @pytest.mark.asyncio

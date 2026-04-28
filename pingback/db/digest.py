@@ -103,24 +103,29 @@ async def mark_digest_sent(db: aiosqlite.Connection, user_id: str) -> None:
 # Digest data queries
 # ---------------------------------------------------------------------------
 
+# MAK-126: digest send time is locked at 08:00 local for every user. The
+# scheduler ticks every 15 minutes; matching a ±7 minute window around 08:00
+# gives a single eligible tick per local day with worst-case ~15 min latency.
+_DIGEST_SEND_HOUR_LOCAL = 8
+_DIGEST_MATCH_WINDOW_MINUTES = 7
+
+
 async def get_users_due_for_digest(
     db: aiosqlite.Connection, now_utc: datetime
 ) -> list[dict]:
-    """Return users due for a digest right now, evaluated against each user's
+    """Return users due for today's digest right now, evaluated in each user's
     local timezone.
 
-    A user is due when their preferred send hour (interpreted as local time
-    in `users.timezone`) has already arrived today and we haven't already sent
-    them today's digest. We compare with `>=` rather than `==` so that a
-    delayed scheduler tick (or a service restart that crosses the user's
-    preferred hour) still produces the email later that same local day,
-    instead of silently dropping it the way the UTC-equality filter did
-    before MAK-124.
+    A user is due when their local wall-clock time is within ±7 minutes of
+    08:00 today AND we haven't already sent today's digest (compared against
+    `local_today_start`). The narrow window pairs with a 15-minute scheduler
+    tick to give ≤15 min delivery latency without re-firing the same user
+    twice in a day.
     """
     async with db.execute(
         """
         SELECT u.id, u.email, u.name, u.timezone,
-               dp.unsubscribe_token, dp.send_hour_utc, dp.last_sent_at
+               dp.unsubscribe_token, dp.last_sent_at
         FROM digest_preferences dp
         JOIN users u ON u.id = dp.user_id
         WHERE dp.enabled = 1
@@ -138,8 +143,11 @@ async def get_users_due_for_digest(
     for r in rows:
         tz = _resolve_tz(r["timezone"])
         local_now = now_utc.astimezone(tz)
-        send_hour = int(r["send_hour_utc"])
-        if local_now.hour < send_hour:
+        target = local_now.replace(
+            hour=_DIGEST_SEND_HOUR_LOCAL, minute=0, second=0, microsecond=0
+        )
+        delta_minutes = abs((local_now - target).total_seconds()) / 60.0
+        if delta_minutes > _DIGEST_MATCH_WINDOW_MINUTES:
             continue
         local_today_start = local_now.replace(hour=0, minute=0, second=0, microsecond=0)
         last_sent_at = r["last_sent_at"]

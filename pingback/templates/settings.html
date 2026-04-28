@@ -87,39 +87,12 @@
 
       <div class="card">
         <h3 class="section-title">Notifications</h3>
-        <p class="section-sub">Configure daily digest email.</p>
-        <form method="post" action="/dashboard/settings/notifications">
-          <label class="row" style="justify-content:space-between;background:var(--bg-2);padding:12px 14px;border-radius:10px;border:1px solid var(--line);margin-bottom:14px;cursor:pointer">
-            <div>
-              <div style="font-size:14px;font-weight:500">Daily digest email</div>
-              <div class="muted small" style="margin-top:2px">Summary of uptime and incidents, delivered once per day.</div>
-            </div>
-            <input type="checkbox" id="digest_enabled" name="digest_enabled" value="1"
-                   {{ 'checked' if digest_enabled else '' }}
-                   style="width:18px;height:18px;accent-color:var(--accent)">
-          </label>
-          <div class="grid-2">
-            <div class="field" style="margin:0">
-              <label for="send_hour_utc">Send hour</label>
-              <select class="input" id="send_hour_utc" name="send_hour_utc" style="width:100%">
-                {% for h in range(24) %}
-                <option value="{{ h }}" {{ 'selected' if send_hour_utc == h else '' }}>{{ '%02d:00'|format(h) }}</option>
-                {% endfor %}
-              </select>
-              <div class="muted small" style="margin-top:6px">Local time in the timezone you pick on the right.</div>
-            </div>
-            <div class="field" style="margin:0">
-              <label for="timezone_name">Timezone</label>
-              <select class="input" id="timezone_name" name="timezone_name" style="width:100%">
-                {% for tz in timezone_options %}
-                <option value="{{ tz }}" {{ 'selected' if user_timezone == tz else '' }}>{{ tz }}</option>
-                {% endfor %}
-              </select>
-              <div class="muted small" style="margin-top:6px">Pick the zone you want the digest to land at 08:00 in.</div>
-            </div>
-          </div>
-          <button type="submit" class="btn btn-primary" style="margin-top:14px">Save preferences</button>
-        </form>
+        <p class="section-sub">
+          Daily digest is delivered at 08:00 in your timezone
+          (<span class="mono">{{ user_timezone }}</span>).
+          Manage delivery preferences on the
+          <a href="/dashboard/billing">Billing</a> page.
+        </p>
       </div>
 
       <div class="sep"></div>

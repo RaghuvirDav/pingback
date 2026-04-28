@@ -13,5 +13,25 @@
 </head>
 <body>
   {% block body %}{% endblock %}
+  {% if user and (user.timezone or 'Etc/UTC') == 'Etc/UTC' %}
+  <script>
+    // MAK-126: one-shot browser-tz seed. Only fires while the server still
+    // has the legacy Etc/UTC default — never clobbers an explicit pick. Uses
+    // sessionStorage to avoid POSTing on every page nav within a tab.
+    (function () {
+      try {
+        if (sessionStorage.getItem("pb_tz_seeded") === "1") return;
+        var tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        if (!tz || tz === "Etc/UTC") { sessionStorage.setItem("pb_tz_seeded", "1"); return; }
+        fetch("/api/users/me/timezone", {
+          method: "POST",
+          credentials: "same-origin",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ timezone: tz }),
+        }).finally(function () { sessionStorage.setItem("pb_tz_seeded", "1"); });
+      } catch (e) { /* no-op */ }
+    })();
+  </script>
+  {% endif %}
 </body>
 </html>

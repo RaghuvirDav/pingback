@@ -33,7 +33,7 @@ from pingback.config import (
     PADDLE_WEBHOOK_SECRET,
 )
 from pingback.db.connection import get_database
-from pingback.routes.dashboard import _get_ui_user, _redirect
+from pingback.routes.dashboard import _digest_timezone_options, _get_ui_user, _redirect
 
 _TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
 templates = Jinja2Templates(directory=str(_TEMPLATES_DIR))
@@ -52,6 +52,17 @@ async def billing_page(request: Request):
     if user is None:
         return _redirect("/login")
 
+    db = await get_database()
+    digest_enabled = True
+    async with db.execute(
+        "SELECT enabled FROM digest_preferences WHERE user_id = ?", (user["id"],)
+    ) as cur:
+        row = await cur.fetchone()
+        if row:
+            digest_enabled = bool(row["enabled"])
+
+    user_timezone = user.get("timezone") or "Etc/UTC"
+
     return templates.TemplateResponse(request, "billing.html", {
         "user": user,
         "paddle_client_token": PADDLE_CLIENT_TOKEN,
@@ -59,6 +70,9 @@ async def billing_page(request: Request):
         "paddle_price_monthly": PADDLE_PRICE_ID_MONTHLY,
         "paddle_price_yearly": PADDLE_PRICE_ID_YEARLY,
         "paddle_discount_launch": PADDLE_DISCOUNT_ID_LAUNCH,
+        "digest_enabled": digest_enabled,
+        "user_timezone": user_timezone,
+        "timezone_options": _digest_timezone_options(user_timezone),
         "success": request.query_params.get("success"),
         "error": request.query_params.get("error"),
     })

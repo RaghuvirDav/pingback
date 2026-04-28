@@ -845,26 +845,12 @@ async def settings_page(request: Request):
         return _redirect("/login")
     db = await get_database()
 
-    # Load digest preferences
-    digest_enabled = True
-    send_hour_utc = 8
-    async with db.execute(
-        "SELECT enabled, send_hour_utc FROM digest_preferences WHERE user_id = ?", (user["id"],)
-    ) as cur:
-        row = await cur.fetchone()
-        if row:
-            digest_enabled = bool(row["enabled"])
-            send_hour_utc = row["send_hour_utc"]
-
     user_timezone = user.get("timezone") or "Etc/UTC"
     status_url = f"{APP_BASE_URL}/status/{user['id']}"
 
     return templates.TemplateResponse(request, "settings.html", {
         "user": user,
-        "digest_enabled": digest_enabled,
-        "send_hour_utc": send_hour_utc,
         "user_timezone": user_timezone,
-        "timezone_options": _digest_timezone_options(user_timezone),
         "status_url": status_url,
         "success": request.query_params.get("success"),
         "error": request.query_params.get("error"),
@@ -874,19 +860,19 @@ async def settings_page(request: Request):
 @router.post("/dashboard/settings/notifications")
 async def update_notifications(
     request: Request,
-    send_hour_utc: int = Form(8),
     digest_enabled: int = Form(0),
     timezone_name: str = Form("Etc/UTC"),
+    redirect_to: str = Form("/dashboard/billing"),
 ):
+    """Update digest enabled + timezone. Send hour is locked at 08:00 local
+    (MAK-126) — no per-user override."""
     user = await _get_ui_user(request)
     if user is None:
         return _redirect("/login")
-    if not 0 <= send_hour_utc <= 23:
-        return _redirect("/dashboard/settings?error=Send+hour+must+be+between+0+and+23")
     try:
         ZoneInfo(timezone_name)
     except ZoneInfoNotFoundError:
-        return _redirect("/dashboard/settings?error=Unknown+timezone")
+        return _redirect(f"{redirect_to}?error=Unknown+timezone")
 
     db = await get_database()
     now = datetime.now(timezone.utc).isoformat()
@@ -897,12 +883,44 @@ async def update_notifications(
         (timezone_name, now, now if digest_enabled else None, user["id"]),
     )
     await db.execute(
-        """UPDATE digest_preferences SET enabled = ?, send_hour_utc = ?, updated_at = ?
+        """UPDATE digest_preferences SET enabled = ?, send_hour_utc = 8, updated_at = ?
            WHERE user_id = ?""",
-        (int(bool(digest_enabled)), send_hour_utc, now, user["id"]),
+        (int(bool(digest_enabled)), now, user["id"]),
     )
     await db.commit()
-    return _redirect("/dashboard/settings?success=Notification+preferences+saved")
+    return _redirect(f"{redirect_to}?success=Notification+preferences+saved")
+
+
+@router.post("/api/users/me/timezone")
+async def update_my_timezone(request: Request):
+    """Browser-detected timezone seed. Only overwrites the legacy `Etc/UTC`
+    default — never clobbers an explicit user choice (MAK-126)."""
+    user = await _get_ui_user(request)
+    if user is None:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON")
+    tz_name = (body or {}).get("timezone")
+    if not isinstance(tz_name, str) or not tz_name:
+        raise HTTPException(status_code=400, detail="Missing timezone")
+    try:
+        ZoneInfo(tz_name)
+    except ZoneInfoNotFoundError:
+        raise HTTPException(status_code=400, detail="Unknown timezone")
+
+    if (user.get("timezone") or "Etc/UTC") != "Etc/UTC":
+        return {"updated": False, "timezone": user.get("timezone")}
+
+    db = await get_database()
+    now = datetime.now(timezone.utc).isoformat()
+    await db.execute(
+        "UPDATE users SET timezone = ?, updated_at = ? WHERE id = ? AND timezone = 'Etc/UTC'",
+        (tz_name, now, user["id"]),
+    )
+    await db.commit()
+    return {"updated": True, "timezone": tz_name}
 
 
 @router.post("/dashboard/settings/change-password")
