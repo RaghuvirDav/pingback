@@ -33,7 +33,9 @@ from pingback.config import (
     PADDLE_WEBHOOK_SECRET,
 )
 from pingback.db.connection import get_database
+from pingback.encryption import decrypt_value
 from pingback.routes.dashboard import _digest_timezone_options, _get_ui_user, _redirect
+from pingback.services.email import send_pro_welcome_email
 
 _TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
 templates = Jinja2Templates(directory=str(_TEMPLATES_DIR))
@@ -339,6 +341,121 @@ async def _claim_customer_for_user(data: dict) -> None:
 async def _handle_subscription_created_with_claim(data: dict) -> None:
     await _claim_customer_for_user(data)
     await _sync_subscription(data)
+    await _send_pro_welcome_if_needed(data)
+
+
+# ---------------------------------------------------------------------------
+# Pro upgrade welcome / receipt email (MAK-111)
+# ---------------------------------------------------------------------------
+
+# Paddle minor-unit currencies — one display unit = 100 minor units. We don't
+# need to be exhaustive: anything missing falls through to "skip the price
+# string", which the email tolerates. Zero-decimal currencies (JPY, KRW) are
+# whitelisted explicitly so we don't divide them by 100.
+_ZERO_DECIMAL_CURRENCIES = {"JPY", "KRW", "VND", "CLP", "PYG"}
+
+
+def _format_amount(amount_str: str | None, currency: str | None) -> str | None:
+    if not amount_str or not currency:
+        return None
+    try:
+        minor = int(amount_str)
+    except (TypeError, ValueError):
+        return None
+    currency = currency.upper()
+    if currency in _ZERO_DECIMAL_CURRENCIES:
+        return f"{minor} {currency}"
+    return f"{currency} {minor / 100:.2f}"
+
+
+def _extract_plan_summary(data: dict) -> tuple[str | None, str | None]:
+    """Build the (amount_display, billing_interval) strings shown in the email.
+
+    Paddle's subscription.created payload has the pricing under
+    items[].price.unit_price.{amount,currency_code} and the cadence under
+    items[].price.billing_cycle.{interval,frequency}. We tolerate missing
+    structure — the email body skips the price line if we can't extract it.
+    """
+    items = data.get("items") or []
+    if not items:
+        return None, None
+    price = (items[0] or {}).get("price") or {}
+    unit_price = price.get("unit_price") or {}
+    amount = _format_amount(unit_price.get("amount"), unit_price.get("currency_code") or data.get("currency_code"))
+    cycle = price.get("billing_cycle") or {}
+    interval = cycle.get("interval")
+    frequency = cycle.get("frequency", 1)
+    if amount and interval:
+        if frequency and frequency != 1:
+            amount = f"{amount} every {frequency} {interval}s"
+        else:
+            amount = f"{amount}/{interval}"
+    return amount, interval
+
+
+def _format_renewal_date(iso_value: str | None) -> str | None:
+    if not iso_value:
+        return None
+    try:
+        # Paddle sends RFC3339 like "2026-05-21T00:00:00Z"
+        dt = datetime.fromisoformat(iso_value.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return dt.strftime("%b %d, %Y")
+
+
+async def _send_pro_welcome_if_needed(data: dict) -> None:
+    """Send the Pro welcome email exactly once per user.
+
+    Idempotency layers:
+      1. Webhook event_id dedup in paddle_events (caller-side).
+      2. users.pro_welcome_sent_at timestamp set here — guards against Paddle
+         emitting subscription.created twice with different event_ids
+         (e.g., recreate-after-cancel) and against future code paths that
+         might call this helper for non-create events.
+    """
+    customer_id = data.get("customer_id") or (data.get("customer") or {}).get("id")
+    status = data.get("status")
+    if not customer_id or status not in _PRO_STATUSES:
+        return
+
+    db = await get_database()
+    async with db.execute(
+        """SELECT id, email, name, pro_welcome_sent_at
+             FROM users WHERE paddle_customer_id = ?""",
+        (customer_id,),
+    ) as cur:
+        row = await cur.fetchone()
+    if row is None:
+        logger.warning("Pro welcome email: no user for paddle_customer_id=%s", customer_id)
+        return
+    if row["pro_welcome_sent_at"]:
+        logger.info("Pro welcome already sent for user %s — skipping", row["id"])
+        return
+
+    email_plain = decrypt_value(row["email"])
+    amount_display, _interval = _extract_plan_summary(data)
+    next_billed_display = _format_renewal_date(_next_renewal_iso(data))
+
+    # Stamp first so a downstream send failure can't trigger a re-send loop on
+    # webhook retries. Paddle will email its own invoice regardless, so a
+    # missed welcome email is a soft failure — log + move on.
+    now = datetime.now(timezone.utc).isoformat()
+    await db.execute(
+        "UPDATE users SET pro_welcome_sent_at = ?, updated_at = ? WHERE id = ?",
+        (now, now, row["id"]),
+    )
+    await db.commit()
+
+    try:
+        send_pro_welcome_email(
+            to=email_plain,
+            name=row["name"],
+            amount_display=amount_display,
+            next_billed_display=next_billed_display,
+        )
+    except Exception:
+        logger.exception("Pro welcome email send failed for user %s", row["id"])
 
 
 _WEBHOOK_HANDLERS = {

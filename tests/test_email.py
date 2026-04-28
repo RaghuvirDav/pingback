@@ -59,6 +59,74 @@ def test_send_email_builds_payload_and_returns_id(monkeypatch):
     assert captured["headers"] == {"X-Category": "verification"}
 
 
+def test_send_pro_welcome_email_includes_plan_and_next_billed(monkeypatch):
+    captured: dict = {}
+
+    class FakeEmails:
+        @staticmethod
+        def send(params):
+            captured.update(params)
+            return {"id": "welcome-msg-id"}
+
+    monkeypatch.setattr(email_service, "RESEND_API_KEY", "test-key")
+    monkeypatch.setattr(email_service.resend, "Emails", FakeEmails)
+    monkeypatch.setattr(email_service, "EMAIL_FROM_NOREPLY", "Pingback <noreply@usepingback.com>")
+
+    msg_id = email_service.send_pro_welcome_email(
+        to="user@example.com",
+        name="Avery",
+        amount_display="USD 12.00/month",
+        next_billed_display="May 21, 2026",
+    )
+
+    assert msg_id == "welcome-msg-id"
+    assert captured["to"] == ["user@example.com"]
+    assert captured["subject"] == "Welcome to Pingback Pro"
+    assert "Welcome to Pingback Pro" in captured["html"]
+    assert "USD 12.00/month" in captured["html"]
+    assert "May 21, 2026" in captured["html"]
+    assert "Paddle" in captured["text"]
+    assert "Avery" in captured["text"]
+
+
+def test_send_pro_welcome_email_omits_unknown_plan_and_date(monkeypatch):
+    """When Paddle doesn't give us amount/date we still send a welcome — the
+    body just skips those lines instead of rendering 'None'."""
+    captured: dict = {}
+
+    class FakeEmails:
+        @staticmethod
+        def send(params):
+            captured.update(params)
+            return {"id": "id"}
+
+    monkeypatch.setattr(email_service, "RESEND_API_KEY", "test-key")
+    monkeypatch.setattr(email_service.resend, "Emails", FakeEmails)
+
+    email_service.send_pro_welcome_email(
+        to="user@example.com",
+        name=None,
+        amount_display=None,
+        next_billed_display=None,
+    )
+
+    assert "None" not in captured["html"]
+    assert "None" not in captured["text"]
+    # Falls back to email address as the greeting when name is missing.
+    assert "user@example.com" in captured["text"]
+
+
+def test_send_pro_welcome_email_noop_when_resend_key_missing(monkeypatch):
+    monkeypatch.setattr(email_service, "RESEND_API_KEY", "")
+    result = email_service.send_pro_welcome_email(
+        to="user@example.com",
+        name="Avery",
+        amount_display="USD 12.00/month",
+        next_billed_display="May 21, 2026",
+    )
+    assert result is None
+
+
 def test_send_email_accepts_list_of_recipients(monkeypatch):
     captured: dict = {}
 

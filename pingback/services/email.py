@@ -214,6 +214,95 @@ def send_password_reset_email(*, to: str, name: str | None, reset_url: str) -> s
     return send_email(to=to, subject=subject, text=text, html=html)
 
 
+def send_pro_welcome_email(
+    *,
+    to: str,
+    name: str | None,
+    amount_display: str | None,
+    next_billed_display: str | None,
+) -> str | None:
+    """Welcome + receipt summary sent on first successful Pro upgrade (MAK-111).
+
+    Paddle is the merchant of record and emails its own tax invoice — this is
+    a friendly confirmation, not a receipt for tax/expense purposes. Copy
+    explicitly says so to avoid confusion.
+    """
+    display = name or to
+    plan_line = f"<strong>Pingback Pro</strong>"
+    if amount_display:
+        plan_line += f" — {amount_display}"
+    next_line = (
+        f"Next billed on <strong>{next_billed_display}</strong>."
+        if next_billed_display
+        else ""
+    )
+    next_line_text = (
+        f"Next billed on {next_billed_display}.\n" if next_billed_display else ""
+    )
+    amount_text = f" ({amount_display})" if amount_display else ""
+
+    subject = "Welcome to Pingback Pro"
+    text = (
+        f"Hi {display},\n\n"
+        f"Thanks for upgrading to Pingback Pro{amount_text}.\n\n"
+        f"What you get:\n"
+        f"- Unlimited monitors\n"
+        f"- 1-minute check intervals\n"
+        f"- Daily digest emails\n"
+        f"- Public status pages\n\n"
+        f"{next_line_text}"
+        f"Paddle (our payment processor) will email a separate tax invoice for your records.\n\n"
+        f"Dashboard: {APP_BASE_URL}/dashboard\n"
+        f"Manage billing: {APP_BASE_URL}/dashboard/billing\n\n"
+        f"Need help? Just reply to this email.\n"
+    )
+    html = f"""<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body style="margin:0;padding:0;background:#f3f4f6;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+<div style="max-width:600px;margin:0 auto;padding:24px;">
+  <div style="background:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.1);">
+    <div style="background:#1e293b;padding:24px;text-align:center;">
+      <h1 style="margin:0;color:#ffffff;font-size:22px;">Welcome to Pingback Pro</h1>
+    </div>
+    <div style="padding:24px;color:#374151;">
+      <p style="margin:0 0 16px;">Hi {display},</p>
+      <p style="margin:0 0 20px;">Thanks for upgrading. Your account is now on Pingback Pro.</p>
+
+      <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:16px;margin:0 0 20px;">
+        <div style="font-size:14px;color:#6b7280;margin-bottom:4px;">Plan</div>
+        <div style="font-size:16px;color:#1e293b;">{plan_line}</div>
+        {f'<div style="font-size:13px;color:#6b7280;margin-top:8px;">{next_line}</div>' if next_line else ''}
+      </div>
+
+      <p style="margin:0 0 8px;font-weight:600;color:#1e293b;">What you get:</p>
+      <ul style="margin:0 0 20px;padding-left:20px;color:#374151;">
+        <li>Unlimited monitors</li>
+        <li>1-minute check intervals</li>
+        <li>Daily digest emails</li>
+        <li>Public status pages</li>
+      </ul>
+
+      <div style="text-align:center;margin:24px 0;">
+        <a href="{APP_BASE_URL}/dashboard" style="display:inline-block;background:#2563eb;color:#ffffff;padding:10px 24px;border-radius:6px;text-decoration:none;font-weight:600;font-size:14px;">Open dashboard</a>
+      </div>
+
+      <p style="margin:16px 0 0;font-size:13px;color:#6b7280;">
+        Paddle, our payment processor, will email a separate tax invoice for your records.
+        Manage or cancel your subscription any time from
+        <a href="{APP_BASE_URL}/dashboard/billing" style="color:#2563eb;">billing settings</a>.
+      </p>
+      <p style="margin:12px 0 0;font-size:13px;color:#6b7280;">
+        Need help? Just reply to this email.
+      </p>
+    </div>
+  </div>
+</div>
+</body>
+</html>"""
+    return send_email(to=to, subject=subject, text=text, html=html)
+
+
 async def send_daily_digests(now_utc: datetime | None = None) -> int:
     """Send digest emails to all users whose local-time send hour has arrived.
 
