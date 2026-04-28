@@ -1,5 +1,6 @@
 {% import "_brand.html" as brand %}
 {% import "_icons.html" as ic %}
+<div class="sidebar-backdrop" data-toggle-sidebar aria-hidden="true"></div>
 <aside class="sidebar" id="pb-sidebar">
   <a href="/" class="brand" style="cursor:pointer">{{ brand.brand_logo(22) }}</a>
 
@@ -52,12 +53,34 @@
 </aside>
 
 <script>
-  // Mobile sidebar toggle
-  document.addEventListener('click', function(e) {
-    var t = e.target.closest('[data-toggle-sidebar]');
-    if (t) {
-      document.getElementById('pb-sidebar').classList.toggle('open');
-      e.preventDefault();
+  // Mobile sidebar drawer
+  (function() {
+    var sidebar = document.getElementById('pb-sidebar');
+    if (!sidebar) return;
+    var btn = document.querySelector('[data-toggle-sidebar].menu-btn, .menu-btn[data-toggle-sidebar]');
+
+    function setOpen(open) {
+      sidebar.classList.toggle('open', open);
+      document.body.classList.toggle('sidebar-open', open);
+      if (btn) btn.setAttribute('aria-expanded', open ? 'true' : 'false');
     }
-  });
+
+    document.addEventListener('click', function(e) {
+      var toggle = e.target.closest('[data-toggle-sidebar]');
+      if (toggle) {
+        e.preventDefault();
+        setOpen(!sidebar.classList.contains('open'));
+        return;
+      }
+      // Close drawer when tapping a nav link inside it
+      if (sidebar.classList.contains('open')) {
+        var link = e.target.closest('a');
+        if (link && sidebar.contains(link)) setOpen(false);
+      }
+    });
+
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Escape' && sidebar.classList.contains('open')) setOpen(false);
+    });
+  })();
 </script>

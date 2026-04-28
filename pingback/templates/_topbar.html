@@ -1,6 +1,7 @@
 {% import "_icons.html" as ic %}
 <div class="topbar">
-  <button class="menu-btn" data-toggle-sidebar aria-label="Open menu">{{ ic.i_menu(18) }}</button>
+  <button class="menu-btn" data-toggle-sidebar aria-label="Open menu"
+          aria-controls="pb-sidebar" aria-expanded="false">{{ ic.i_menu(18) }}</button>
   <div class="crumbs">
     {% for c in crumbs or ['Pingback'] %}
       {% if not loop.first %}<span class="sep">/</span>{% endif %}
