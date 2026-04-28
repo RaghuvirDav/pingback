@@ -1198,7 +1198,11 @@ textarea.input:focus-visible {
   .billing-plan { grid-template-columns: 1fr; }
   .settings-grid { grid-template-columns: 1fr; gap: 16px; }
   .feature-grid { grid-template-columns: 1fr; }
-  .mrow { grid-template-columns: 22px 1fr 0.7fr 22px; gap: 12px; padding: 14px 16px; }
+  /* Each .mrow is its own grid, so fr-units resolve per-row and the
+     uptime % column drifts when one row's name cell is wider (e.g. has
+     an ERROR tag). Lock the metric column to a fixed width so values
+     right-align under the header across rows. */
+  .mrow { grid-template-columns: 22px minmax(0, 1fr) 80px 22px; gap: 12px; padding: 14px 16px; }
   .mrow .spark-cell,
   .mrow .p95-cell,
   .mrow .every-cell { display: none; }
