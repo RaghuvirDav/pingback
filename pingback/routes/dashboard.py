@@ -48,6 +48,7 @@ from pingback.services.plans import (
     allowed_intervals_for_plan,
     ensure_interval_allowed,
     ensure_monitor_quota,
+    limits_for,
     min_interval_for_plan,
 )
 from pingback.session import clear_session, get_session_key, set_session
@@ -127,6 +128,29 @@ def _interval_choices_for(plan: str | None) -> tuple[list[dict], int]:
         [{"seconds": s, "label": label(s)} for s in allowed_intervals_for_plan(plan)],
         min_interval_for_plan(plan),
     )
+
+
+def _paddle_checkout_ctx() -> dict:
+    """Paddle.Checkout.open inputs reused across pages that fire inline upgrades."""
+    from pingback.config import (
+        MAX_MONITORS_PRO,
+        HISTORY_DAYS_PRO,
+        PADDLE_CLIENT_TOKEN,
+        PADDLE_DISCOUNT_ID_LAUNCH,
+        PADDLE_ENVIRONMENT,
+        PADDLE_PRICE_ID_MONTHLY,
+        PADDLE_PRICE_ID_YEARLY,
+    )
+    return {
+        "paddle_client_token": PADDLE_CLIENT_TOKEN,
+        "paddle_environment": PADDLE_ENVIRONMENT,
+        "paddle_price_monthly": PADDLE_PRICE_ID_MONTHLY,
+        "paddle_price_yearly": PADDLE_PRICE_ID_YEARLY,
+        "paddle_discount_launch": PADDLE_DISCOUNT_ID_LAUNCH,
+        "app_base_url": APP_BASE_URL,
+        "pro_max_monitors": MAX_MONITORS_PRO,
+        "pro_history_days": HISTORY_DAYS_PRO,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -712,9 +736,11 @@ async def new_monitor_page(request: Request):
         return _redirect("/login")
     plan = user.get("plan", "free")
     intervals, floor = _interval_choices_for(plan)
+    upgraded = request.query_params.get("upgraded") == "1"
     return templates.TemplateResponse(request, "monitor_form.html", {
         "user": user, "monitor": None, "error": None, "name": "", "url": "",
         "allowed_intervals": intervals, "plan_floor_seconds": floor,
+        "upgraded_resume": upgraded,
     })
 
 
@@ -732,18 +758,35 @@ async def new_monitor_submit(
     db = await get_database()
 
     plan = user.get("plan", "free")
+    current_count = await count_user_monitors(db, user["id"])
+    cap_kind: str | None = None
     try:
-        ensure_monitor_quota(plan, await count_user_monitors(db, user["id"]))
-        ensure_interval_allowed(plan, interval_seconds)
+        ensure_monitor_quota(plan, current_count)
     except PlanLimitExceeded as exc:
+        cap_kind = "monitors"
+        cap_message = exc.message
+    if cap_kind is None:
+        try:
+            ensure_interval_allowed(plan, interval_seconds)
+        except PlanLimitExceeded as exc:
+            cap_kind = "interval"
+            cap_message = exc.message
+    if cap_kind is not None:
         intervals, floor = _interval_choices_for(plan)
-        return templates.TemplateResponse(request, "monitor_form.html", {
+        ctx = {
             "user": user, "monitor": None,
-            "error": exc.message,
+            "error": cap_message,
             "upgrade_required": plan == "free",
-            "name": name, "url": url,
+            "cap_hit": plan == "free",
+            "cap_hit_kind": cap_kind,
+            "current_monitor_count": current_count,
+            "current_monitor_limit": limits_for(plan).max_monitors,
+            "name": name, "url": url, "interval_seconds": interval_seconds,
+            "is_public": int(bool(is_public)),
             "allowed_intervals": intervals, "plan_floor_seconds": floor,
-        }, status_code=403)
+        }
+        ctx.update(_paddle_checkout_ctx())
+        return templates.TemplateResponse(request, "monitor_form.html", ctx, status_code=403)
 
     monitor = await create_monitor(db, user["id"], name, url, interval_seconds, bool(is_public))
     return _redirect(f"/dashboard/monitors/{monitor.id}")
@@ -787,12 +830,16 @@ async def edit_monitor_submit(
         ensure_interval_allowed(plan, interval_seconds)
     except PlanLimitExceeded as exc:
         intervals, floor = _interval_choices_for(plan)
-        return templates.TemplateResponse(request, "monitor_form.html", {
+        ctx = {
             "user": user, "monitor": monitor,
             "error": exc.message,
             "upgrade_required": plan == "free",
+            "cap_hit": plan == "free",
+            "cap_hit_kind": "interval",
             "allowed_intervals": intervals, "plan_floor_seconds": floor,
-        }, status_code=403)
+        }
+        ctx.update(_paddle_checkout_ctx())
+        return templates.TemplateResponse(request, "monitor_form.html", ctx, status_code=403)
     now = datetime.now(timezone.utc).isoformat()
     await db.execute(
         """UPDATE monitors SET name = ?, url = ?, interval_seconds = ?, is_public = ?, updated_at = ?
