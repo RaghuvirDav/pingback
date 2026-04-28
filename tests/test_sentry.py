@@ -17,7 +17,13 @@ def _reimport_pingback():
 def test_sentry_disabled_when_dsn_unset(monkeypatch, tmp_path):
     monkeypatch.setenv("DB_PATH", str(tmp_path / "p.db"))
     monkeypatch.setenv("APP_ENV", "development")
-    monkeypatch.delenv("SENTRY_DSN", raising=False)
+    # Set explicit empty (not delenv) so load_dotenv's override=False
+    # default doesn't repopulate SENTRY_DSN from local .env on reimport.
+    monkeypatch.setenv("SENTRY_DSN", "")
+
+    for mod in list(sys.modules):
+        if mod == "pingback" or mod.startswith("pingback."):
+            del sys.modules[mod]
 
     from pingback.sentry_init import init_sentry
 
