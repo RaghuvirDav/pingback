@@ -6,6 +6,7 @@ import secrets
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError, available_timezones
 
 from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -77,6 +78,36 @@ def _require_login(user: dict | None) -> dict:
 
 def _redirect(url: str, status_code: int = 303) -> RedirectResponse:
     return RedirectResponse(url=url, status_code=status_code)
+
+
+# A curated short list keeps the dropdown usable. Anything not in this list
+# can still be persisted via the API; the picker is just for the common case.
+_COMMON_DIGEST_TIMEZONES = [
+    "Etc/UTC",
+    "America/Los_Angeles",
+    "America/Denver",
+    "America/Chicago",
+    "America/New_York",
+    "America/Sao_Paulo",
+    "Europe/London",
+    "Europe/Paris",
+    "Europe/Berlin",
+    "Africa/Lagos",
+    "Asia/Dubai",
+    "Asia/Kolkata",
+    "Asia/Singapore",
+    "Asia/Tokyo",
+    "Australia/Sydney",
+]
+
+
+def _digest_timezone_options(current: str | None) -> list[str]:
+    """Return the dropdown list, ensuring the user's current zone is included
+    even if it's not on the curated list (so legacy/edge values still round-trip)."""
+    options = list(_COMMON_DIGEST_TIMEZONES)
+    if current and current not in options and current in available_timezones():
+        options.append(current)
+    return options
 
 
 # ---------------------------------------------------------------------------
@@ -299,20 +330,25 @@ async def signup_submit(
     now = datetime.now(timezone.utc).isoformat()
     verification_token = generate_token()
 
+    # Signup is the GDPR consent moment for the daily digest. Without this,
+    # the consent filter in `get_users_due_for_digest` quietly drops every
+    # newly created account (MAK-124).
     await db.execute(
         """INSERT INTO users (
                id, email, email_hash, name, plan,
                api_key, api_key_hash,
                password_hash, email_verified,
                verification_token, verification_expires_at,
-               created_at, updated_at, last_login_at
-           ) VALUES (?, ?, ?, ?, 'free', ?, ?, ?, 0, ?, ?, ?, ?, ?)""",
+               created_at, updated_at, last_login_at,
+               consent_given_at, timezone
+           ) VALUES (?, ?, ?, ?, 'free', ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, 'Etc/UTC')""",
         (
             user_id, encrypt_value(email), email_hash_value, name or None,
             encrypt_value(api_key), hash_api_key(api_key),
             hash_password(password),
             verification_token, token_expiry(VERIFICATION_TTL_HOURS),
             now, now, now,
+            now,
         ),
     )
 
@@ -820,12 +856,15 @@ async def settings_page(request: Request):
             digest_enabled = bool(row["enabled"])
             send_hour_utc = row["send_hour_utc"]
 
+    user_timezone = user.get("timezone") or "Etc/UTC"
     status_url = f"{APP_BASE_URL}/status/{user['id']}"
 
     return templates.TemplateResponse(request, "settings.html", {
         "user": user,
         "digest_enabled": digest_enabled,
         "send_hour_utc": send_hour_utc,
+        "user_timezone": user_timezone,
+        "timezone_options": _digest_timezone_options(user_timezone),
         "status_url": status_url,
         "success": request.query_params.get("success"),
         "error": request.query_params.get("error"),
@@ -837,12 +876,26 @@ async def update_notifications(
     request: Request,
     send_hour_utc: int = Form(8),
     digest_enabled: int = Form(0),
+    timezone_name: str = Form("Etc/UTC"),
 ):
     user = await _get_ui_user(request)
     if user is None:
         return _redirect("/login")
+    if not 0 <= send_hour_utc <= 23:
+        return _redirect("/dashboard/settings?error=Send+hour+must+be+between+0+and+23")
+    try:
+        ZoneInfo(timezone_name)
+    except ZoneInfoNotFoundError:
+        return _redirect("/dashboard/settings?error=Unknown+timezone")
+
     db = await get_database()
     now = datetime.now(timezone.utc).isoformat()
+    await db.execute(
+        """UPDATE users SET timezone = ?, updated_at = ?,
+               consent_given_at = COALESCE(consent_given_at, ?)
+           WHERE id = ?""",
+        (timezone_name, now, now if digest_enabled else None, user["id"]),
+    )
     await db.execute(
         """UPDATE digest_preferences SET enabled = ?, send_hour_utc = ?, updated_at = ?
            WHERE user_id = ?""",

@@ -42,18 +42,17 @@ async def update_preferences(
 
     db = await get_database()
 
-    # Check GDPR consent before enabling
+    # Enabling the digest *is* the consent moment. Backfill `consent_given_at`
+    # if it isn't already set so we don't quietly drop this user out of the
+    # eligibility query (MAK-124).
     if body.enabled:
-        async with db.execute(
-            "SELECT consent_given_at FROM users WHERE id = ?",
-            (current_user["id"],),
-        ) as cursor:
-            row = await cursor.fetchone()
-        if row is None or row["consent_given_at"] is None:
-            raise HTTPException(
-                status_code=400,
-                detail="GDPR consent required before enabling digest emails. POST /api/users/{user_id}/consent first.",
-            )
+        from datetime import datetime, timezone as _tz
+        now_iso = datetime.now(_tz.utc).isoformat()
+        await db.execute(
+            "UPDATE users SET consent_given_at = COALESCE(consent_given_at, ?) WHERE id = ?",
+            (now_iso, current_user["id"]),
+        )
+        await db.commit()
 
     pref = await upsert_digest_pref(db, current_user["id"], body.enabled, body.send_hour_utc)
     return {

@@ -96,7 +96,7 @@ async def _lookup_user(token: str) -> dict | None:
     # Primary lookup via hash column (encrypted-era keys)
     async with db.execute(
         """SELECT id, email, name, plan, paddle_customer_id, paddle_subscription_id,
-                  plan_renews_at, plan_cancel_at, email_verified
+                  plan_renews_at, plan_cancel_at, email_verified, timezone
              FROM users WHERE api_key_hash = ?""",
         (token_hash,),
     ) as cursor:
@@ -105,7 +105,7 @@ async def _lookup_user(token: str) -> dict | None:
         # Fallback: legacy plaintext api_key lookup (pre-encryption data)
         async with db.execute(
             """SELECT id, email, name, plan, paddle_customer_id, paddle_subscription_id,
-                      plan_renews_at, plan_cancel_at, email_verified
+                      plan_renews_at, plan_cancel_at, email_verified, timezone
                  FROM users WHERE api_key = ?""",
             (token,),
         ) as cursor:
@@ -128,6 +128,7 @@ async def _lookup_user(token: str) -> dict | None:
         "plan_renews_at": row["plan_renews_at"],
         "plan_cancel_at": row["plan_cancel_at"],
         "email_verified": bool(row["email_verified"]),
+        "timezone": row["timezone"] or "Etc/UTC",
     }
 
 

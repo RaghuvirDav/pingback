@@ -1,13 +1,29 @@
 from __future__ import annotations
 
+import logging
 import secrets
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Optional
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import aiosqlite
 
 from pingback.encryption import decrypt_value
+
+logger = logging.getLogger("pingback.digest.db")
+
+
+def _resolve_tz(name: str | None) -> ZoneInfo:
+    """Look up an IANA tz, falling back to UTC if the name is bad. We never
+    want a junky DB row to wedge the whole digest run."""
+    if not name:
+        return ZoneInfo("Etc/UTC")
+    try:
+        return ZoneInfo(name)
+    except ZoneInfoNotFoundError:
+        logger.warning("Unknown timezone %r; falling back to UTC", name)
+        return ZoneInfo("Etc/UTC")
 
 
 def _now_iso() -> str:
@@ -87,33 +103,69 @@ async def mark_digest_sent(db: aiosqlite.Connection, user_id: str) -> None:
 # Digest data queries
 # ---------------------------------------------------------------------------
 
-async def get_users_due_for_digest(db: aiosqlite.Connection, current_hour_utc: int) -> list[dict]:
-    """Return users who have digest enabled, GDPR consent given, at least one active monitor,
-    and whose send_hour_utc matches the current hour. Skips users already sent today."""
-    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+async def get_users_due_for_digest(
+    db: aiosqlite.Connection, now_utc: datetime
+) -> list[dict]:
+    """Return users due for a digest right now, evaluated against each user's
+    local timezone.
+
+    A user is due when their preferred send hour (interpreted as local time
+    in `users.timezone`) has already arrived today and we haven't already sent
+    them today's digest. We compare with `>=` rather than `==` so that a
+    delayed scheduler tick (or a service restart that crosses the user's
+    preferred hour) still produces the email later that same local day,
+    instead of silently dropping it the way the UTC-equality filter did
+    before MAK-124.
+    """
     async with db.execute(
         """
-        SELECT DISTINCT u.id, u.email, u.name, dp.unsubscribe_token, dp.send_hour_utc
+        SELECT u.id, u.email, u.name, u.timezone,
+               dp.unsubscribe_token, dp.send_hour_utc, dp.last_sent_at
         FROM digest_preferences dp
         JOIN users u ON u.id = dp.user_id
-        JOIN monitors m ON m.user_id = u.id AND m.status = 'active'
         WHERE dp.enabled = 1
-          AND dp.send_hour_utc = ?
           AND u.consent_given_at IS NOT NULL
-          AND (dp.last_sent_at IS NULL OR dp.last_sent_at < ?)
-        """,
-        (current_hour_utc, today_start),
+          AND EXISTS (
+              SELECT 1 FROM monitors m
+              WHERE m.user_id = u.id AND m.status = 'active'
+          )
+        """
     ) as cursor:
         rows = await cursor.fetchall()
-    return [
-        {
-            "id": r["id"],
-            "email": decrypt_value(r["email"]),
-            "name": r["name"],
-            "unsubscribe_token": r["unsubscribe_token"],
-        }
-        for r in rows
-    ]
+
+    now_utc = now_utc.astimezone(timezone.utc)
+    eligible: list[dict] = []
+    for r in rows:
+        tz = _resolve_tz(r["timezone"])
+        local_now = now_utc.astimezone(tz)
+        send_hour = int(r["send_hour_utc"])
+        if local_now.hour < send_hour:
+            continue
+        local_today_start = local_now.replace(hour=0, minute=0, second=0, microsecond=0)
+        last_sent_at = r["last_sent_at"]
+        if last_sent_at:
+            try:
+                last = datetime.fromisoformat(last_sent_at)
+                if last.tzinfo is None:
+                    last = last.replace(tzinfo=timezone.utc)
+                if last.astimezone(tz) >= local_today_start:
+                    continue
+            except ValueError:
+                logger.warning(
+                    "Bad last_sent_at %r for user %s; treating as never sent",
+                    last_sent_at,
+                    r["id"],
+                )
+        eligible.append(
+            {
+                "id": r["id"],
+                "email": decrypt_value(r["email"]),
+                "name": r["name"],
+                "unsubscribe_token": r["unsubscribe_token"],
+                "timezone": str(tz),
+            }
+        )
+    return eligible
 
 
 async def get_user_digest_stats(db: aiosqlite.Connection, user_id: str) -> dict:

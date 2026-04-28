@@ -75,16 +75,21 @@ async def _maybe_purge() -> None:
 
 
 async def _maybe_send_digests() -> None:
-    """Send daily digest emails when a new UTC hour begins."""
+    """Evaluate digest delivery once per UTC hour (and once on startup).
+
+    The per-user filter happens inside `send_daily_digests`, which compares
+    each user's preferred local hour against `now_utc`. We still gate on the
+    UTC hour here so we don't pay the DB scan every 10s; the catch-up case
+    (service restart that crossed a user's send hour) is handled by the
+    `>=`-based eligibility check inside the query, not by re-firing here.
+    """
     global _last_digest_hour
-    current_hour = datetime.now(timezone.utc).hour
-    if current_hour == _last_digest_hour:
+    now_utc = datetime.now(timezone.utc)
+    if now_utc.hour == _last_digest_hour:
         return
-    _last_digest_hour = current_hour
+    _last_digest_hour = now_utc.hour
     try:
-        sent = await send_daily_digests(current_hour)
-        if sent > 0:
-            logger.info("Sent %d daily digest email(s) for hour %d UTC", sent, current_hour)
+        await send_daily_digests(now_utc)
     except Exception:
         logger.exception("Daily digest send error")
 

@@ -139,6 +139,15 @@ MIGRATIONS = [
         type TEXT NOT NULL,
         received_at TEXT NOT NULL DEFAULT (datetime('now'))
     )""",
+    # Per-user timezone for daily digest delivery (MAK-124). IANA name.
+    # Defaulting to 'Etc/UTC' grandfathers existing users to the prior
+    # UTC-relative behavior until they pick their own zone.
+    """ALTER TABLE users ADD COLUMN timezone TEXT NOT NULL DEFAULT 'Etc/UTC'""",
+    # Backfill consent for any user who already opted into the digest. The
+    # opt-in toggle was the consent moment in practice — we just never
+    # recorded it, which silently blocked every digest send.
+    """UPDATE users SET consent_given_at = COALESCE(consent_given_at, datetime('now'))
+       WHERE id IN (SELECT user_id FROM digest_preferences WHERE enabled = 1)""",
 ]
 
 
