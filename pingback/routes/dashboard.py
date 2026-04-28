@@ -135,6 +135,7 @@ async def pricing(request: Request):
         "paddle_environment": PADDLE_ENVIRONMENT,
         "paddle_price_monthly": PADDLE_PRICE_ID_MONTHLY,
         "paddle_discount_launch": PADDLE_DISCOUNT_ID_LAUNCH,
+        "app_base_url": APP_BASE_URL,
     })
 
 

@@ -73,6 +73,7 @@ async def billing_page(request: Request):
         "digest_enabled": digest_enabled,
         "user_timezone": user_timezone,
         "timezone_options": _digest_timezone_options(user_timezone),
+        "app_base_url": APP_BASE_URL,
         "success": request.query_params.get("success"),
         "error": request.query_params.get("error"),
     })
