@@ -15,7 +15,16 @@
     <span>25% off Pro for the first 3 months. Applied at checkout.</span>
   </div>
 
-  <div class="billing-plan billing-plan--2col" style="max-width:880px;margin:24px auto 8px">
+  <div class="trust-strip mono small muted" role="note"
+       style="max-width:1100px;margin:18px auto 0;text-align:center;display:flex;flex-wrap:wrap;justify-content:center;gap:6px 14px;padding:0 16px">
+    <span>14-day no-questions refund</span>
+    <span aria-hidden="true">·</span>
+    <span>MIT licensed</span>
+    <span aria-hidden="true">·</span>
+    <span>Built on Paddle (MoR, handles tax)</span>
+  </div>
+
+  <div class="billing-plan" style="max-width:1100px;margin:18px auto 8px">
     <div class="plan">
       <div class="row" style="justify-content:space-between">
         <span class="mono small muted">FREE</span>
@@ -85,11 +94,29 @@
       <a class="btn btn-primary btn-full" href="/signup?upgrade=pro" style="margin-top:18px">Start Pro trial {{ ic.i_arrow_right(14) }}</a>
       {% endif %}
     </div>
-  </div>
 
-  <p class="muted small" style="text-align:center;margin:0 0 48px">
-    Prefer to self-host? Pingback is open source — <a href="https://github.com/RaghuvirDav/pingback">grab the repo</a> and run it on your own box for free.
-  </p>
+    <div class="plan {% if user and user.plan == 'business' %}current{% endif %}">
+      <div class="row" style="justify-content:space-between">
+        <span class="mono small muted">BUSINESS{% if user and user.plan == 'business' %} · CURRENT{% endif %}</span>
+      </div>
+      <div class="price">$29<span class="unit"> / mo</span></div>
+      <div class="muted small">Growing ops teams. Production fleets.</div>
+      <ul>
+        <li>100 monitors</li>
+        <li>Checks as fast as 30 sec</li>
+        <li>1-year check history</li>
+        <li>Team accounts</li>
+        <li>API access &middot; webhooks</li>
+      </ul>
+      {% if user and user.plan == 'business' %}
+      <form method="post" action="/dashboard/billing/portal" style="margin:18px 0 0">
+        <button class="btn btn-primary btn-full" type="submit">Manage subscription</button>
+      </form>
+      {% else %}
+      <a class="btn btn-full" href="mailto:hello@usepingback.com" style="margin-top:18px">Contact sales {{ ic.i_arrow_right(14) }}</a>
+      {% endif %}
+    </div>
+  </div>
 
   <div class="features" id="faq">
     <div class="features-head">
@@ -111,6 +138,9 @@
       </div>
       {% endfor %}
     </div>
+    <p class="muted small" style="text-align:center;margin:32px 0 0">
+      Prefer to self-host? Pingback is open source — <a href="https://github.com/RaghuvirDav/pingback">grab the repo</a> and run it on your own box for free.
+    </p>
   </div>
 
   <div class="cta-strip">
