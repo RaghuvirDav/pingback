@@ -214,17 +214,25 @@ def send_password_reset_email(*, to: str, name: str | None, reset_url: str) -> s
     return send_email(to=to, subject=subject, text=text, html=html)
 
 
-async def send_daily_digests(current_hour_utc: int) -> int:
-    """Send digest emails to all eligible users for the given UTC hour. Returns count sent."""
+async def send_daily_digests(now_utc: datetime | None = None) -> int:
+    """Send digest emails to all users whose local-time send hour has arrived.
+
+    `now_utc` is the reference time; defaults to wall-clock UTC. Returns the
+    count of emails actually dispatched.
+    """
+    if now_utc is None:
+        now_utc = datetime.now(timezone.utc)
+
     if not RESEND_API_KEY:
         logger.warning("RESEND_API_KEY not set — skipping digest send")
         return 0
 
     resend.api_key = RESEND_API_KEY
     db = await get_database()
-    users = await get_users_due_for_digest(db, current_hour_utc)
+    users = await get_users_due_for_digest(db, now_utc)
 
     if not users:
+        logger.info("Daily digest tick: 0 users due at %s", now_utc.isoformat())
         return 0
 
     sent = 0
@@ -253,7 +261,7 @@ async def send_daily_digests(current_hour_utc: int) -> int:
 
             await mark_digest_sent(db, user["id"])
             sent += 1
-            logger.info("Sent digest to user %s", user["id"])
+            logger.info("Sent digest to user %s (tz=%s)", user["id"], user.get("timezone"))
         except Exception:
             logger.exception("Failed to send digest to user %s", user["id"])
 

@@ -98,15 +98,27 @@
                    {{ 'checked' if digest_enabled else '' }}
                    style="width:18px;height:18px;accent-color:var(--accent)">
           </label>
-          <div class="field">
-            <label for="send_hour_utc">Send hour (UTC)</label>
-            <select class="input" id="send_hour_utc" name="send_hour_utc" style="width:160px">
-              {% for h in range(24) %}
-              <option value="{{ h }}" {{ 'selected' if send_hour_utc == h else '' }}>{{ '%02d:00'|format(h) }}</option>
-              {% endfor %}
-            </select>
+          <div class="grid-2">
+            <div class="field" style="margin:0">
+              <label for="send_hour_utc">Send hour</label>
+              <select class="input" id="send_hour_utc" name="send_hour_utc" style="width:100%">
+                {% for h in range(24) %}
+                <option value="{{ h }}" {{ 'selected' if send_hour_utc == h else '' }}>{{ '%02d:00'|format(h) }}</option>
+                {% endfor %}
+              </select>
+              <div class="muted small" style="margin-top:6px">Local time in the timezone you pick on the right.</div>
+            </div>
+            <div class="field" style="margin:0">
+              <label for="timezone_name">Timezone</label>
+              <select class="input" id="timezone_name" name="timezone_name" style="width:100%">
+                {% for tz in timezone_options %}
+                <option value="{{ tz }}" {{ 'selected' if user_timezone == tz else '' }}>{{ tz }}</option>
+                {% endfor %}
+              </select>
+              <div class="muted small" style="margin-top:6px">Pick the zone you want the digest to land at 08:00 in.</div>
+            </div>
           </div>
-          <button type="submit" class="btn btn-primary">Save preferences</button>
+          <button type="submit" class="btn btn-primary" style="margin-top:14px">Save preferences</button>
         </form>
       </div>
 
