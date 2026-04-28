@@ -679,15 +679,8 @@ async def dashboard(request: Request):
 
     total_checks_24h: int | None = None
     try:
-        async with db.execute(
-            "SELECT COUNT(*) AS n FROM check_results c "
-            "JOIN monitors m ON m.id = c.monitor_id "
-            "WHERE m.user_id = ? AND c.checked_at >= datetime('now', '-1 day')",
-            (user["id"],),
-        ) as cur:
-            row = await cur.fetchone()
-            if row:
-                total_checks_24h = row["n"]
+        from pingback.db.rollups import count_user_checks_in_window
+        total_checks_24h = await count_user_checks_in_window(db, user["id"], 24 * 3600)
     except Exception:
         logger.exception("dashboard checks_24h query failed")
         total_checks_24h = None
