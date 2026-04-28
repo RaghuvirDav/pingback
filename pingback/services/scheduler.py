@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import logging
 from datetime import datetime, timezone
 
@@ -9,7 +10,7 @@ from pingback.db.connection import get_database
 from pingback.db.monitors import (
     archive_abandoned_free_accounts,
     find_active_monitors,
-    get_last_check,
+    get_last_check_times,
     purge_expired_check_results,
     save_check_result,
 )
@@ -19,10 +20,16 @@ from pingback.services.email import send_daily_digests
 
 logger = logging.getLogger("pingback.scheduler")
 
-# Tick fires at this granularity; a monitor is dispatched when its own
-# `interval_seconds` has elapsed since the last check. 10s gives <=10s drift
-# on the 30s BUSINESS floor, which is acceptable for uptime monitoring.
-TICK_INTERVAL_SECONDS = 10
+# MAK-148: tick at 1s so the per-monitor jitter offset (±5s, see
+# `_jitter_offset_seconds`) actually fans monitors out across a 10s window.
+# At 200 active monitors a single batch SELECT keeps the per-tick read at 2
+# queries, so this granularity is cheap on SQLite WAL.
+TICK_INTERVAL_SECONDS = 1
+# MAK-148: jitter window in seconds. Each monitor gets a stable offset in
+# [-_JITTER_HALF_WINDOW, _JITTER_WINDOW - _JITTER_HALF_WINDOW), so the herd
+# at any tick boundary is spread evenly across this many seconds.
+_JITTER_WINDOW_SECONDS = 10
+_JITTER_HALF_WINDOW = _JITTER_WINDOW_SECONDS // 2
 _PURGE_INTERVAL_SECONDS = 86400  # Run retention purge once per day
 # MAK-126: digest evaluation runs every 15 minutes. The eligibility filter
 # uses a ±7-minute window around 08:00 local, so each user is matched by
@@ -55,26 +62,43 @@ async def _run_check(db, monitor) -> None:
         await save_check_result(db, monitor.id, "error", None, None, str(exc))
 
 
+def _jitter_offset_seconds(monitor_id: str) -> int:
+    """Stable per-monitor jitter offset in [-5, +4] seconds (MAK-148).
+
+    Hashing the monitor id gives each monitor a deterministic anchor inside
+    the 10s jitter window, so the top-of-minute herd spreads evenly without
+    drifting more than ±5s from the requested cadence.
+    """
+    digest = hashlib.sha256(monitor_id.encode("utf-8")).digest()
+    return (digest[0] % _JITTER_WINDOW_SECONDS) - _JITTER_HALF_WINDOW
+
+
 async def _tick() -> None:
     db = await get_database()
     monitors = await find_active_monitors(db)
+    if not monitors:
+        return
     now = datetime.now(timezone.utc).timestamp()
+
+    last_check_times = await get_last_check_times(db, [m.id for m in monitors])
 
     due: list = []
     for monitor in monitors:
-        last_check = await get_last_check(db, monitor.id)
+        last_check_iso = last_check_times.get(monitor.id)
         last_check_time = (
-            datetime.fromisoformat(last_check.checked_at).timestamp()
-            if last_check
+            datetime.fromisoformat(last_check_iso).timestamp()
+            if last_check_iso
             else 0
         )
-        if now >= last_check_time + monitor.interval_seconds:
+        # Per-monitor stable offset spreads concurrent fires across the 10s
+        # window. Drift is bounded by ±5s of the declared cadence.
+        offset = _jitter_offset_seconds(monitor.id)
+        if now >= last_check_time + monitor.interval_seconds + offset:
             due.append(monitor)
 
     if due:
-        # Fan out concurrently so one slow target can't starve the rest. A
-        # Business customer at the 30s floor × 100 monitors is ~3.3 checks/sec;
-        # httpx async with the 30s checker timeout absorbs that on one worker.
+        # Fan out concurrently so one slow target can't starve the rest. With
+        # jitter, at most ⌈len(monitors)/10⌉ should fire in any single second.
         await asyncio.gather(*(_run_check(db, m) for m in due), return_exceptions=True)
 
 
