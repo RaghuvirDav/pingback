@@ -112,6 +112,34 @@ def test_plan_limit_enforced_on_free_tier(client):
     assert "limit" in r.text.lower() or "upgrade" in r.text.lower()
 
 
+def test_monitor_detail_shows_error_column_and_banner(client):
+    """When a check has an error, the detail page must surface it (MAK-108)."""
+    import sqlite3
+    import uuid
+    from datetime import datetime, timezone
+
+    from pingback.config import DB_PATH
+
+    _signup(client)
+    r = _create_monitor(client, name="DNS-fail", url="https://broken.example.com")
+    mid = r.headers["location"].rsplit("/", 1)[-1]
+
+    err_msg = "dns lookup failed: no such host"
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute(
+            "INSERT INTO check_results (id, monitor_id, status, status_code, response_time_ms, error, checked_at) "
+            "VALUES (?, ?, 'down', NULL, NULL, ?, ?)",
+            (str(uuid.uuid4()), mid, err_msg, datetime.now(timezone.utc).isoformat()),
+        )
+        conn.commit()
+
+    r = client.get(f"/dashboard/monitors/{mid}")
+    assert r.status_code == 200
+    assert err_msg in r.text  # banner + table cell both render it
+    assert ">Error<" in r.text  # the new column header
+    assert "Last check failed" in r.text  # banner copy
+
+
 def test_invalid_url_rejected_by_pydantic(client):
     _signup(client)
     # Fastapi/pydantic should reject a non-URL value at the form layer.

@@ -812,9 +812,14 @@ async def monitor_detail(request: Request, monitor_id: str):
 
     current_status = "unknown"
     last_response_ms = None
+    last_error = None
     if checks:
         current_status = checks[0].status
         last_response_ms = checks[0].response_time_ms
+        for c in checks:
+            if c.error:
+                last_error = c.error
+                break
 
     response_times = []
     if rts_raw:
@@ -830,6 +835,7 @@ async def monitor_detail(request: Request, monitor_id: str):
         "uptime": uptime,
         "current_status": current_status,
         "last_response_ms": last_response_ms,
+        "last_error": last_error,
         "checks": checks,
         "response_times": response_times,
     })
