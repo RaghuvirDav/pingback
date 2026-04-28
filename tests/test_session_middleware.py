@@ -16,10 +16,10 @@ def test_audit_log_written_for_api_request(client, app_ctx):
     """Directly verify the middleware writes an audit row — /audit-log route is
     business-plan only, but the raw `audit_log` table is populated for all API
     requests regardless of plan. We assert against the DB directly."""
-    import asyncio
+    import sqlite3
 
     from pingback.session import _verify
-    from pingback.db.connection import get_database
+    from pingback.config import DB_PATH
 
     from tests.conftest import signup_and_verify
     signup_and_verify(client, "audit@example.com")
@@ -34,15 +34,10 @@ def test_audit_log_written_for_api_request(client, app_ctx):
     )
     assert r.status_code == 201
 
-    async def _count_monitor_creates():
-        db = await get_database()
-        async with db.execute(
-            "SELECT COUNT(*) AS n FROM audit_log WHERE resource_type = 'monitors' AND action = 'create'"
-        ) as cur:
-            row = await cur.fetchone()
-            return row["n"]
-
-    n = asyncio.get_event_loop().run_until_complete(_count_monitor_creates())
+    with sqlite3.connect(DB_PATH) as conn:
+        n = conn.execute(
+            "SELECT COUNT(*) FROM audit_log WHERE resource_type = 'monitors' AND action = 'create'"
+        ).fetchone()[0]
     assert n >= 1
 
 
