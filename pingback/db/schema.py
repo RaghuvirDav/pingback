@@ -51,6 +51,55 @@ CREATE INDEX IF NOT EXISTS idx_monitors_user_id ON monitors(user_id);
 CREATE INDEX IF NOT EXISTS idx_monitors_status ON monitors(status);
 CREATE INDEX IF NOT EXISTS idx_check_results_monitor_id ON check_results(monitor_id);
 CREATE INDEX IF NOT EXISTS idx_check_results_checked_at ON check_results(checked_at);
+
+-- MAK-147: pre-aggregated rollups so dashboard reads don't scan raw check_results.
+-- window_start is ISO8601 UTC at the bucket boundary (e.g. ...:42:00Z for the 1m
+-- bucket starting at 14:42:00). PRIMARY KEY enforces idempotent recompaction via
+-- INSERT OR REPLACE.
+CREATE TABLE IF NOT EXISTS check_results_1m (
+    monitor_id TEXT NOT NULL,
+    window_start TEXT NOT NULL,
+    check_count INTEGER NOT NULL,
+    ok_count INTEGER NOT NULL,
+    fail_count INTEGER NOT NULL,
+    avg_latency_ms REAL,
+    p50_latency_ms INTEGER,
+    p95_latency_ms INTEGER,
+    p99_latency_ms INTEGER,
+    PRIMARY KEY (monitor_id, window_start),
+    FOREIGN KEY (monitor_id) REFERENCES monitors(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_check_results_1m_window ON check_results_1m(window_start);
+
+CREATE TABLE IF NOT EXISTS check_results_5m (
+    monitor_id TEXT NOT NULL,
+    window_start TEXT NOT NULL,
+    check_count INTEGER NOT NULL,
+    ok_count INTEGER NOT NULL,
+    fail_count INTEGER NOT NULL,
+    avg_latency_ms REAL,
+    p50_latency_ms INTEGER,
+    p95_latency_ms INTEGER,
+    p99_latency_ms INTEGER,
+    PRIMARY KEY (monitor_id, window_start),
+    FOREIGN KEY (monitor_id) REFERENCES monitors(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_check_results_5m_window ON check_results_5m(window_start);
+
+CREATE TABLE IF NOT EXISTS check_results_1h (
+    monitor_id TEXT NOT NULL,
+    window_start TEXT NOT NULL,
+    check_count INTEGER NOT NULL,
+    ok_count INTEGER NOT NULL,
+    fail_count INTEGER NOT NULL,
+    avg_latency_ms REAL,
+    p50_latency_ms INTEGER,
+    p95_latency_ms INTEGER,
+    p99_latency_ms INTEGER,
+    PRIMARY KEY (monitor_id, window_start),
+    FOREIGN KEY (monitor_id) REFERENCES monitors(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_check_results_1h_window ON check_results_1h(window_start);
 CREATE INDEX IF NOT EXISTS idx_audit_log_user_id ON audit_log(user_id);
 CREATE INDEX IF NOT EXISTS idx_audit_log_timestamp ON audit_log(timestamp);
 CREATE INDEX IF NOT EXISTS idx_audit_log_action ON audit_log(action);

@@ -177,10 +177,14 @@ async def get_users_due_for_digest(
 
 
 async def get_user_digest_stats(db: aiosqlite.Connection, user_id: str) -> dict:
-    """Gather 24-hour digest stats for a user: per-monitor breakdown and overall summary."""
-    cutoff = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
+    """Gather 24-hour digest stats for a user: per-monitor breakdown + overall summary.
 
-    # Get active monitors
+    Reads from the 1m rollup tier via `rollups.get_monitor_window_stats` so the
+    digest stays cheap even at BUSINESS retention. min/max latency become p50/p99
+    when sourced from rollups (the rollup row doesn't carry the raw extremes).
+    """
+    from pingback.db.rollups import get_monitor_window_stats
+
     async with db.execute(
         "SELECT id, name, url FROM monitors WHERE user_id = ? AND status = 'active' ORDER BY name",
         (user_id,),
@@ -193,40 +197,25 @@ async def get_user_digest_stats(db: aiosqlite.Connection, user_id: str) -> dict:
     monitor_stats = []
 
     for mon in monitors:
-        async with db.execute(
-            """
-            SELECT
-                COUNT(*) AS checks,
-                SUM(CASE WHEN status = 'up' THEN 1 ELSE 0 END) AS up_count,
-                SUM(CASE WHEN status != 'up' THEN 1 ELSE 0 END) AS incident_count,
-                AVG(response_time_ms) AS avg_response_ms,
-                MIN(response_time_ms) AS min_response_ms,
-                MAX(response_time_ms) AS max_response_ms
-            FROM check_results
-            WHERE monitor_id = ? AND checked_at >= ?
-            """,
-            (mon["id"], cutoff),
-        ) as cursor:
-            row = await cursor.fetchone()
-
-        checks = row["checks"] or 0
-        up = row["up_count"] or 0
-        incidents = row["incident_count"] or 0
-        uptime_pct = round(up / checks * 100, 2) if checks > 0 else 100.0
+        stats = await get_monitor_window_stats(db, mon["id"], 24 * 3600)
+        checks = stats["check_count"]
+        up = stats["ok_count"]
+        incidents = stats["fail_count"]
 
         total_checks += checks
         total_up += up
         total_incidents += incidents
 
+        avg = stats["avg_latency_ms"]
         monitor_stats.append({
             "name": mon["name"],
             "url": mon["url"],
             "checks": checks,
-            "uptime_pct": uptime_pct,
+            "uptime_pct": stats["uptime_pct"],
             "incidents": incidents,
-            "avg_response_ms": round(row["avg_response_ms"]) if row["avg_response_ms"] else None,
-            "min_response_ms": row["min_response_ms"],
-            "max_response_ms": row["max_response_ms"],
+            "avg_response_ms": round(avg) if avg is not None else None,
+            "min_response_ms": stats["min_latency_ms"],
+            "max_response_ms": stats["max_latency_ms"],
         })
 
     overall_uptime = round(total_up / total_checks * 100, 2) if total_checks > 0 else 100.0

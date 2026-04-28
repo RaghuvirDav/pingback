@@ -175,21 +175,15 @@ async def get_check_history(
 
 
 async def get_30day_uptime(db: aiosqlite.Connection, monitor_id: str) -> float:
-    """Return uptime percentage over the last 30 days (0.0–100.0)."""
-    cutoff = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
-    async with db.execute(
-        """SELECT
-               COUNT(*) AS total,
-               SUM(CASE WHEN status = 'up' THEN 1 ELSE 0 END) AS up_count
-           FROM check_results
-           WHERE monitor_id = ? AND checked_at >= ?""",
-        (monitor_id, cutoff),
-    ) as cursor:
-        row = await cursor.fetchone()
-    total = row["total"]
-    if total == 0:
-        return 100.0
-    return round(row["up_count"] / total * 100, 2)
+    """Return uptime percentage over the last 30 days (0.0–100.0).
+
+    Reads from the 1h rollup tier (720 rows / 30d / monitor) instead of raw
+    check_results. See `pingback.db.rollups` for the tier dispatch logic.
+    """
+    from pingback.db.rollups import get_monitor_window_stats
+
+    stats = await get_monitor_window_stats(db, monitor_id, 30 * 86400)
+    return stats["uptime_pct"]
 
 
 async def get_response_times(
@@ -242,12 +236,13 @@ async def archive_abandoned_free_accounts(db: aiosqlite.Connection, inactivity_d
     user_ids = [r["id"] for r in rows]
 
     for uid in user_ids:
-        # Delete check_results for all monitors owned by this user
-        await db.execute(
-            """DELETE FROM check_results
-               WHERE monitor_id IN (SELECT id FROM monitors WHERE user_id = ?)""",
-            (uid,),
-        )
+        # Delete check_results (raw + rollups) for all monitors owned by this user
+        for table in ("check_results", "check_results_1m", "check_results_5m", "check_results_1h"):
+            await db.execute(
+                f"""DELETE FROM {table}
+                   WHERE monitor_id IN (SELECT id FROM monitors WHERE user_id = ?)""",
+                (uid,),
+            )
         # Pause all active monitors
         await db.execute(
             """UPDATE monitors SET status = 'paused', updated_at = ?
@@ -318,6 +313,18 @@ async def purge_expired_check_results(db: aiosqlite.Connection, retention_days: 
                 deleted,
                 effective,
                 plan,
+            )
+        # MAK-147: keep rollups in lockstep with raw retention.
+        for table in ("check_results_1m", "check_results_5m", "check_results_1h"):
+            await db.execute(
+                f"""DELETE FROM {table}
+                    WHERE window_start < ?
+                      AND monitor_id IN (
+                          SELECT m.id FROM monitors m
+                          JOIN users u ON u.id = m.user_id
+                          WHERE COALESCE(u.plan, 'free') = ?
+                      )""",
+                (cutoff, plan),
             )
 
     await db.commit()

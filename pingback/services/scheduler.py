@@ -13,6 +13,7 @@ from pingback.db.monitors import (
     purge_expired_check_results,
     save_check_result,
 )
+from pingback.db.rollups import compact_recent
 from pingback.services.checker import check_url
 from pingback.services.email import send_daily_digests
 
@@ -27,10 +28,15 @@ _PURGE_INTERVAL_SECONDS = 86400  # Run retention purge once per day
 # uses a ±7-minute window around 08:00 local, so each user is matched by
 # at most one tick per day. Worst-case delivery latency: ~15 minutes.
 _DIGEST_TICK_SECONDS = 15 * 60
+# MAK-147: rollup compaction runs once per minute. The compactor itself decides
+# whether the just-elapsed 1m / 5m / 1h windows actually need writing, so this
+# is just the *evaluation* cadence.
+_ROLLUP_TICK_SECONDS = 60
 
 _task: asyncio.Task | None = None
 _last_purge_time: float = 0
 _last_digest_tick_at: float = 0
+_last_rollup_tick_at: float = 0
 
 
 async def _run_check(db, monitor) -> None:
@@ -110,6 +116,20 @@ async def _maybe_send_digests() -> None:
         logger.exception("Daily digest send error")
 
 
+async def _maybe_compact_rollups() -> None:
+    """Roll up the most recently completed 1m/5m/1h windows once per minute."""
+    global _last_rollup_tick_at
+    now_ts = datetime.now(timezone.utc).timestamp()
+    if now_ts - _last_rollup_tick_at < _ROLLUP_TICK_SECONDS:
+        return
+    _last_rollup_tick_at = now_ts
+    try:
+        db = await get_database()
+        await compact_recent(db)
+    except Exception:
+        logger.exception("Rollup compaction error")
+
+
 async def _scheduler_loop() -> None:
     logger.info("Scheduler started (tick every %ds)", TICK_INTERVAL_SECONDS)
     while True:
@@ -125,6 +145,10 @@ async def _scheduler_loop() -> None:
             await _maybe_send_digests()
         except Exception:
             logger.exception("Digest tick error")
+        try:
+            await _maybe_compact_rollups()
+        except Exception:
+            logger.exception("Rollup tick error")
         await asyncio.sleep(TICK_INTERVAL_SECONDS)
 
 
