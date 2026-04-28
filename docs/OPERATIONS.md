@@ -449,3 +449,71 @@ Out of scope for MAK-140 first cut and tracked separately:
   tier; until we upgrade or wire a Sentry cron monitor we rely on
   `last_run.json` / `last_run.failed.json` and the systemd journal.
   Tracked in the MAK-140 follow-up.
+
+## Admin dashboard at /admin (MAK-142)
+
+Internal one-page operational view for the board. Pulls live data from the
+SQLite DB on the running host — no separate process, no extra dependency.
+
+### What it shows
+
+- Stat cards: total users, paid users (Pro + Business), active monitors,
+  count of recent failures.
+- Currently monitored endpoints (latest 200 active monitors with owner
+  email + check interval). The card meta line shows whether the table is
+  capped vs. the true total.
+- Recent failures feed: last 50 `down`/`error` check_results across all
+  users, with monitor URL, status code, and error string.
+- Optional "View Sentry →" button if `SENTRY_DASHBOARD_URL` is set.
+
+### Auth model
+
+Access is gated by an **email allowlist**, not by plan tier. A business
+customer is not Pingback ops — reusing the audit-log gate would leak every
+user's monitors. Non-allowlisted callers (including logged-out visitors)
+get a `404` so the route is invisible to scanners.
+
+Setup:
+
+1. Edit `/opt/pingback/.env` on the EC2 host:
+
+   ```
+   ADMIN_EMAILS=ops@usepingback.com,board@usepingback.com
+   # Optional:
+   SENTRY_DASHBOARD_URL=https://sentry.io/organizations/your-org/projects/pingback/
+   ```
+
+2. Fix perms (the pingback systemd user must be able to read `.env`):
+
+   ```bash
+   sudo chown root:pingback /opt/pingback/.env
+   sudo chmod 640 /opt/pingback/.env
+   sudo systemctl restart pingback
+   ```
+
+3. Sign in with one of the allowlisted emails at `/login`, then visit
+   `/admin`.
+
+To revoke: remove the email from `ADMIN_EMAILS` and restart. Empty
+`ADMIN_EMAILS` fully closes the route.
+
+### Smoke test
+
+```bash
+# Logged out — must be 404.
+curl -s -o /dev/null -w "%{http_code}\n" https://usepingback.com/admin
+# Expected: 404
+
+# Logged in as an allowlisted user — must be 200 with the page body.
+curl -sb cookies.txt https://usepingback.com/admin | grep -q "Admin · Pingback ops"
+```
+
+### What it does NOT do
+
+- No write actions (read-only view).
+- No Sentry API pull — Sentry app errors stay in Sentry; the button just
+  links out. The on-page failures feed is monitor failures only, sourced
+  from `check_results`.
+- No auto-refresh — reload the page to refresh.
+- No pagination — caps at 200 monitors / 50 failures by design. If we
+  outgrow that, raise the cap or add a search filter.

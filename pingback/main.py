@@ -18,6 +18,7 @@ from pingback.middleware import (
     HTTPSRedirectMiddleware,
     RequestContextMiddleware,
 )
+from pingback.routes.admin import router as admin_router
 from pingback.routes.audit import router as audit_router
 from pingback.routes.billing import router as billing_router
 from pingback.routes.checks import router as checks_router
@@ -93,6 +94,7 @@ app.include_router(audit_router)
 app.include_router(digest_router)
 app.include_router(billing_router)
 app.include_router(dashboard_router)
+app.include_router(admin_router)
 if DEBUG_BOOM_ENABLED:
     app.include_router(debug_router)
 

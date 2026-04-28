@@ -1,0 +1,146 @@
+{% extends "base.html" %}
+{% block title %}Admin · Pingback{% endblock %}
+{% block head %}
+<style>
+  .admin-wrap { max-width: 1200px; margin: 0 auto; padding: 32px 24px 64px; }
+  .admin-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 28px; gap: 16px; flex-wrap: wrap; }
+  .admin-head h1 { font-size: 24px; margin: 0; }
+  .admin-head .sub { color: var(--fg-3); font-size: 13px; }
+  .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 32px; }
+  .stat-card .card-title { color: var(--fg-3); font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; }
+  .stat-card .card-value { font-size: 32px; font-weight: 600; margin-top: 6px; }
+  .stat-card .card-sub { color: var(--fg-3); font-size: 12px; margin-top: 4px; }
+  .panel { margin-bottom: 32px; }
+  .panel-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 12px; gap: 12px; }
+  .panel-head h2 { font-size: 16px; margin: 0; font-weight: 600; }
+  .panel-head .meta { color: var(--fg-3); font-size: 12px; }
+  .pill { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.04em; }
+  .pill.down { background: oklch(0.70 0.19 25 / 0.18); color: oklch(0.70 0.19 25); }
+  .pill.error { background: oklch(0.82 0.16 75 / 0.18); color: oklch(0.65 0.16 75); }
+  .pill.active { background: oklch(0.70 0.16 165 / 0.18); color: oklch(0.55 0.16 165); }
+  .url-cell { max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .err-cell { max-width: 360px; color: var(--fg-2); font-family: var(--font-mono, monospace); font-size: 12px; word-break: break-word; }
+  .empty { color: var(--fg-3); padding: 24px; text-align: center; font-size: 13px; }
+</style>
+{% endblock %}
+{% block body %}
+<div class="admin-wrap">
+  <div class="admin-head">
+    <div>
+      <h1>Admin · Pingback ops</h1>
+      <div class="sub">Internal view of monitors, users, and recent failures across all accounts.</div>
+    </div>
+    <div class="row" style="gap:8px">
+      <a class="btn" href="/dashboard">My dashboard</a>
+      {% if sentry_dashboard_url %}
+      <a class="btn" href="{{ sentry_dashboard_url }}" target="_blank" rel="noopener">View Sentry →</a>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="stat-grid">
+    <div class="card stat-card">
+      <div class="card-title">Total users</div>
+      <div class="card-value">{{ total_users }}</div>
+      <div class="card-sub">free {{ plan_counts.free }} · pro {{ plan_counts.pro }} · business {{ plan_counts.business }}</div>
+    </div>
+    <div class="card stat-card">
+      <div class="card-title">Paid users</div>
+      <div class="card-value">{{ paid_users }}</div>
+      <div class="card-sub">pro + business</div>
+    </div>
+    <div class="card stat-card">
+      <div class="card-title">Active monitors</div>
+      <div class="card-value">{{ active_monitor_count }}</div>
+      <div class="card-sub">status = active</div>
+    </div>
+    <div class="card stat-card">
+      <div class="card-title">Recent failures</div>
+      <div class="card-value">{{ errors|length }}</div>
+      <div class="card-sub">last {{ error_limit }} down/error checks</div>
+    </div>
+  </div>
+
+  <section class="panel">
+    <div class="panel-head">
+      <h2>Currently monitored endpoints</h2>
+      <div class="meta">
+        {% if monitor_list_capped %}
+          showing latest {{ monitor_limit }} of {{ active_monitor_count }}
+        {% else %}
+          {{ monitors|length }} active
+        {% endif %}
+      </div>
+    </div>
+    <div class="card flat">
+      {% if monitors %}
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>URL</th>
+            <th>Owner</th>
+            <th>Interval</th>
+            <th>Status</th>
+            <th>Updated</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for m in monitors %}
+          <tr>
+            <td>{{ m.name }}</td>
+            <td class="url-cell mono"><a href="{{ m.url }}" target="_blank" rel="noopener">{{ m.url }}</a></td>
+            <td class="mono">{{ m.owner_email }}</td>
+            <td class="mono">{{ m.interval_seconds }}s</td>
+            <td><span class="pill active">{{ m.status }}</span></td>
+            <td class="mono">{{ m.updated_at }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div class="empty">No active monitors.</div>
+      {% endif %}
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <h2>Recent failures</h2>
+      <div class="meta">{{ errors|length }} of last {{ error_limit }} down/error checks</div>
+    </div>
+    <div class="card flat">
+      {% if errors %}
+      <table class="table">
+        <thead>
+          <tr>
+            <th>When</th>
+            <th>Status</th>
+            <th>Monitor</th>
+            <th>URL</th>
+            <th>Owner</th>
+            <th>HTTP</th>
+            <th>Error</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for e in errors %}
+          <tr>
+            <td class="mono">{{ e.checked_at }}</td>
+            <td><span class="pill {{ e.status }}">{{ e.status }}</span></td>
+            <td>{{ e.monitor_name }}</td>
+            <td class="url-cell mono"><a href="{{ e.monitor_url }}" target="_blank" rel="noopener">{{ e.monitor_url }}</a></td>
+            <td class="mono">{{ e.owner_email }}</td>
+            <td class="mono">{{ e.status_code or '—' }}</td>
+            <td class="err-cell">{{ e.error or '' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div class="empty">No recent failures. Nice.</div>
+      {% endif %}
+    </div>
+  </section>
+</div>
+{% endblock %}
