@@ -16,9 +16,14 @@ MAX_MONITORS_FREE = 3
 MAX_MONITORS_PRO = 20
 MAX_MONITORS_BUSINESS = 100
 
-# Check intervals per plan (seconds).
-CHECK_INTERVAL_FREE = 300      # 5 minutes
-CHECK_INTERVAL_PRO = 60        # 1 minute
+# Per-plan check-interval FLOORS in seconds (MAK-117, board-firm 2026-04-27).
+# These are the fastest a plan is allowed to poll, NOT a fixed cadence —
+# `monitors.interval_seconds` is per-monitor and user-configurable; users may
+# pick anything >= the floor for their plan. The scheduler honours the
+# per-monitor value.
+CHECK_INTERVAL_FREE = 300        # 5 min  — Free floor
+CHECK_INTERVAL_PRO = 60          # 1 min  — Pro floor
+CHECK_INTERVAL_BUSINESS = 30     # 30 sec — Business floor
 
 # Per-plan retention of historical check_results (days). Caps are board-firm
 # (MAK-116, 2026-04-27): Free 7d, Pro 90d, Business 1yr.

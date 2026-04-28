@@ -12,6 +12,9 @@
 
       <h1 class="page-title">Billing</h1>
       <div class="page-sub">Pick a plan. Cancel any time.</div>
+      <div class="muted small" style="margin-top:4px">
+        Your <strong>{{ user.plan|upper }}</strong> plan polls as fast as <strong>{{ plan_floor_label }}</strong>; pick any interval ≥ that on each monitor.
+      </div>
 
       {% if success %}<div class="flash success">{{ success }}</div>{% endif %}
       {% if error %}<div class="flash error">{{ error }}</div>{% endif %}
@@ -26,7 +29,7 @@
           <div class="muted small">Personal projects.</div>
           <ul>
             <li>3 monitors</li>
-            <li>5-minute intervals</li>
+            <li>Checks as fast as 5 min</li>
             <li>7-day history</li>
             <li>Email alerts · public status page</li>
           </ul>

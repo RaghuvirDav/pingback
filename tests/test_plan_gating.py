@@ -13,9 +13,11 @@ import pytest
 
 from pingback.services.plans import (
     PlanLimitExceeded,
+    allowed_intervals_for_plan,
     ensure_interval_allowed,
     ensure_monitor_quota,
     limits_for,
+    min_interval_for_plan,
 )
 
 
@@ -53,6 +55,41 @@ def test_pro_plan_interval_floor():
     ensure_interval_allowed("pro", 60)
     with pytest.raises(PlanLimitExceeded):
         ensure_interval_allowed("pro", 30)
+
+
+def test_business_plan_interval_floor():
+    # Business goes down to 30s per MAK-117 board directive.
+    ensure_interval_allowed("business", 30)
+    with pytest.raises(PlanLimitExceeded):
+        ensure_interval_allowed("business", 15)
+
+
+def test_min_interval_for_plan_per_tier():
+    # Floors per MAK-117 — drive the picklist + server-side validation.
+    assert min_interval_for_plan("free") == 300
+    assert min_interval_for_plan("pro") == 60
+    assert min_interval_for_plan("business") == 30
+    assert min_interval_for_plan(None) == 300
+    assert min_interval_for_plan("unknown") == 300
+
+
+def test_allowed_intervals_filtered_by_floor():
+    # Free can't see anything below 5 min.
+    free = allowed_intervals_for_plan("free")
+    assert all(i >= 300 for i in free)
+    assert 300 in free and 60 not in free and 30 not in free
+
+    # Pro picks up 60s but not 30s.
+    pro = allowed_intervals_for_plan("pro")
+    assert 60 in pro and 300 in pro and 30 not in pro
+
+    # Business sees the full picklist down to 30s.
+    biz = allowed_intervals_for_plan("business")
+    assert 30 in biz and 60 in biz and 300 in biz
+
+    # Each picklist is sorted ascending so the form renders fastest-first.
+    assert pro == sorted(pro)
+    assert biz == sorted(biz)
 
 
 def test_limits_fallback_to_free_for_unknown_plan():

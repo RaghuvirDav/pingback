@@ -18,6 +18,9 @@ from pingback.services.email import send_daily_digests
 
 logger = logging.getLogger("pingback.scheduler")
 
+# Tick fires at this granularity; a monitor is dispatched when its own
+# `interval_seconds` has elapsed since the last check. 10s gives <=10s drift
+# on the 30s BUSINESS floor, which is acceptable for uptime monitoring.
 TICK_INTERVAL_SECONDS = 10
 _PURGE_INTERVAL_SECONDS = 86400  # Run retention purge once per day
 # MAK-126: digest evaluation runs every 15 minutes. The eligibility filter
@@ -30,11 +33,28 @@ _last_purge_time: float = 0
 _last_digest_tick_at: float = 0
 
 
+async def _run_check(db, monitor) -> None:
+    try:
+        outcome = await check_url(monitor.url)
+        await save_check_result(
+            db,
+            monitor.id,
+            outcome.status,
+            outcome.status_code,
+            outcome.response_time_ms,
+            outcome.error,
+        )
+    except Exception as exc:
+        logger.error("Check failed for monitor %s: %s", monitor.id, exc)
+        await save_check_result(db, monitor.id, "error", None, None, str(exc))
+
+
 async def _tick() -> None:
     db = await get_database()
     monitors = await find_active_monitors(db)
     now = datetime.now(timezone.utc).timestamp()
 
+    due: list = []
     for monitor in monitors:
         last_check = await get_last_check(db, monitor.id)
         last_check_time = (
@@ -42,22 +62,14 @@ async def _tick() -> None:
             if last_check
             else 0
         )
-        due_at = last_check_time + monitor.interval_seconds
+        if now >= last_check_time + monitor.interval_seconds:
+            due.append(monitor)
 
-        if now >= due_at:
-            try:
-                outcome = await check_url(monitor.url)
-                await save_check_result(
-                    db,
-                    monitor.id,
-                    outcome.status,
-                    outcome.status_code,
-                    outcome.response_time_ms,
-                    outcome.error,
-                )
-            except Exception as exc:
-                logger.error("Check failed for monitor %s: %s", monitor.id, exc)
-                await save_check_result(db, monitor.id, "error", None, None, str(exc))
+    if due:
+        # Fan out concurrently so one slow target can't starve the rest. A
+        # Business customer at the 30s floor × 100 monitors is ~3.3 checks/sec;
+        # httpx async with the 30s checker timeout absorbs that on one worker.
+        await asyncio.gather(*(_run_check(db, m) for m in due), return_exceptions=True)
 
 
 async def _maybe_purge() -> None:

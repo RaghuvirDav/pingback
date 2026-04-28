@@ -25,7 +25,7 @@
       <div class="muted small">Personal sites. Side projects.</div>
       <ul>
         <li>3 monitors</li>
-        <li>5-minute check interval</li>
+        <li>Checks as fast as 5 min</li>
         <li>7-day check history</li>
         <li>Email alerts</li>
         <li>Public status page</li>
@@ -50,7 +50,7 @@
       <div class="muted small">Production services. Small teams.</div>
       <ul>
         <li>20 monitors</li>
-        <li>60-second check interval</li>
+        <li>Checks as fast as 1 min</li>
         <li>90-day check history</li>
         <li>SSL certificate checks</li>
         <li>Slack + webhook alerts</li>
@@ -103,7 +103,7 @@
 
   <div class="cta-strip">
     <h2>Try it free.</h2>
-    <p>Three monitors, every five minutes, forever. Upgrade only when you need to.</p>
+    <p>Three monitors, polled as fast as every five minutes, forever. Upgrade only when you need faster.</p>
     <div class="hero-cta">
       <a class="btn btn-primary btn-lg" href="{% if user %}/dashboard{% else %}/signup{% endif %}">
         {% if user %}Open dashboard{% else %}Start free{% endif %} {{ ic.i_arrow_right(14) }}

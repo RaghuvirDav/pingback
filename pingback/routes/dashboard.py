@@ -45,8 +45,10 @@ from pingback.services.email import (
 )
 from pingback.services.plans import (
     PlanLimitExceeded,
+    allowed_intervals_for_plan,
     ensure_interval_allowed,
     ensure_monitor_quota,
+    min_interval_for_plan,
 )
 from pingback.session import clear_session, get_session_key, set_session
 
@@ -108,6 +110,23 @@ def _digest_timezone_options(current: str | None) -> list[str]:
     if current and current not in options and current in available_timezones():
         options.append(current)
     return options
+
+
+def _interval_choices_for(plan: str | None) -> tuple[list[dict], int]:
+    """Return ([{seconds, label}, ...], floor_seconds) for the monitor form."""
+    def label(s: int) -> str:
+        if s < 60:
+            return f"{s}s"
+        if s < 3600:
+            m = s // 60
+            return f"{m}m" if s % 60 == 0 else f"{m}m {s % 60}s"
+        h = s // 3600
+        return f"{h}h" if s % 3600 == 0 else f"{h}h {(s % 3600) // 60}m"
+
+    return (
+        [{"seconds": s, "label": label(s)} for s in allowed_intervals_for_plan(plan)],
+        min_interval_for_plan(plan),
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -696,8 +715,11 @@ async def new_monitor_page(request: Request):
     user = await _get_ui_user(request)
     if user is None:
         return _redirect("/login")
+    plan = user.get("plan", "free")
+    intervals, floor = _interval_choices_for(plan)
     return templates.TemplateResponse(request, "monitor_form.html", {
         "user": user, "monitor": None, "error": None, "name": "", "url": "",
+        "allowed_intervals": intervals, "plan_floor_seconds": floor,
     })
 
 
@@ -719,11 +741,13 @@ async def new_monitor_submit(
         ensure_monitor_quota(plan, await count_user_monitors(db, user["id"]))
         ensure_interval_allowed(plan, interval_seconds)
     except PlanLimitExceeded as exc:
+        intervals, floor = _interval_choices_for(plan)
         return templates.TemplateResponse(request, "monitor_form.html", {
             "user": user, "monitor": None,
             "error": exc.message,
             "upgrade_required": plan == "free",
             "name": name, "url": url,
+            "allowed_intervals": intervals, "plan_floor_seconds": floor,
         }, status_code=403)
 
     monitor = await create_monitor(db, user["id"], name, url, interval_seconds, bool(is_public))
@@ -739,8 +763,11 @@ async def edit_monitor_page(request: Request, monitor_id: str):
     monitor = await find_monitor_by_id(db, monitor_id)
     if monitor is None or monitor.user_id != user["id"]:
         raise HTTPException(status_code=404, detail="Monitor not found")
+    plan = user.get("plan", "free")
+    intervals, floor = _interval_choices_for(plan)
     return templates.TemplateResponse(request, "monitor_form.html", {
         "user": user, "monitor": monitor, "error": None,
+        "allowed_intervals": intervals, "plan_floor_seconds": floor,
     })
 
 
@@ -764,10 +791,12 @@ async def edit_monitor_submit(
     try:
         ensure_interval_allowed(plan, interval_seconds)
     except PlanLimitExceeded as exc:
+        intervals, floor = _interval_choices_for(plan)
         return templates.TemplateResponse(request, "monitor_form.html", {
             "user": user, "monitor": monitor,
             "error": exc.message,
             "upgrade_required": plan == "free",
+            "allowed_intervals": intervals, "plan_floor_seconds": floor,
         }, status_code=403)
     now = datetime.now(timezone.utc).isoformat()
     await db.execute(

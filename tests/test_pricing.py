@@ -17,7 +17,9 @@ def test_pricing_page_renders_for_guest(client):
     assert "$0" in r.text and "$12" in r.text
     assert "3 monitors" in r.text
     assert "20 monitors" in r.text
-    assert "60-second" in r.text
+    # Per MAK-117 the cadence numbers are floors, not fixed cadences.
+    assert "as fast as 5 min" in r.text
+    assert "as fast as 1 min" in r.text
     assert "90-day" in r.text
     # Launch promo band per scope
     assert "LAUNCH25" in r.text
