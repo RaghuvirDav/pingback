@@ -45,8 +45,20 @@
             <span class="mono small" style="color:var(--accent)">PRO{% if user.plan == 'pro' %} · CURRENT{% endif %}</span>
             {% if user.plan == 'pro' %}<span style="color:var(--accent)">{{ ic.i_check(14) }}</span>{% endif %}
           </div>
-          <div class="price">$12<span class="unit"> / mo</span></div>
-          <div class="muted small">For teams.</div>
+          {% if user.plan != 'pro' and paddle_price_yearly %}
+          <div class="billing-cycle-toggle" role="tablist" aria-label="Billing cycle"
+               style="display:inline-flex;gap:0;background:var(--bg-2);border:1px solid var(--line);border-radius:999px;padding:3px;margin:8px 0 4px">
+            <button type="button" class="billing-cycle-opt is-active mono small" data-cycle="monthly" role="tab" aria-selected="true"
+                    style="border:0;background:var(--accent);color:#fff;border-radius:999px;padding:5px 12px;cursor:pointer">Monthly</button>
+            <button type="button" class="billing-cycle-opt mono small" data-cycle="yearly" role="tab" aria-selected="false"
+                    style="border:0;background:transparent;color:var(--fg-2);border-radius:999px;padding:5px 12px;cursor:pointer">Annual · save $24</button>
+          </div>
+          {% endif %}
+          <div class="price">
+            <span data-price-monthly>$12<span class="unit"> / mo</span></span>
+            <span data-price-yearly hidden>$10<span class="unit"> / mo billed annually</span></span>
+          </div>
+          <div class="muted small" data-cycle-sub>For teams.</div>
           <ul>
             <li>20 monitors</li>
             <li>1-minute intervals</li>
@@ -158,11 +170,44 @@
   Paddle.Environment.set("{{ paddle_environment|default('sandbox') }}");
   Paddle.Initialize({ token: "{{ paddle_client_token }}" });
 
+  var PRICE_MONTHLY = "{{ paddle_price_monthly }}";
+  var PRICE_YEARLY = "{{ paddle_price_yearly|default('') }}";
+  var billingCycle = "monthly";
+
+  var monthlyEl = document.querySelector("[data-price-monthly]");
+  var yearlyEl = document.querySelector("[data-price-yearly]");
+  var subEl = document.querySelector("[data-cycle-sub]");
+
+  document.querySelectorAll(".billing-cycle-opt").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var cycle = btn.getAttribute("data-cycle");
+      if (cycle === "yearly" && !PRICE_YEARLY) return;
+      billingCycle = cycle;
+      document.querySelectorAll(".billing-cycle-opt").forEach(function (b) {
+        var active = b.getAttribute("data-cycle") === cycle;
+        b.classList.toggle("is-active", active);
+        b.setAttribute("aria-selected", active ? "true" : "false");
+        b.style.background = active ? "var(--accent)" : "transparent";
+        b.style.color = active ? "#fff" : "var(--fg-2)";
+      });
+      if (monthlyEl && yearlyEl) {
+        monthlyEl.hidden = cycle === "yearly";
+        yearlyEl.hidden = cycle === "monthly";
+      }
+      if (subEl) {
+        subEl.textContent = cycle === "yearly"
+          ? "$10/mo billed annually · save $24/yr"
+          : "For teams.";
+      }
+    });
+  });
+
   document.getElementById("paddle-upgrade-btn")?.addEventListener("click", function () {
+    var priceId = billingCycle === "yearly" && PRICE_YEARLY ? PRICE_YEARLY : PRICE_MONTHLY;
     Paddle.Checkout.open({
-      items: [{ priceId: "{{ paddle_price_monthly }}", quantity: 1 }],
+      items: [{ priceId: priceId, quantity: 1 }],
       customer: { email: "{{ user.email }}" },
-      customData: { pingback_user_id: "{{ user.id }}" },
+      customData: { pingback_user_id: "{{ user.id }}", billing_cycle: billingCycle },
       {% if paddle_discount_launch %}discountId: "{{ paddle_discount_launch }}",{% endif %}
       settings: {
         successUrl: "{{ app_base_url }}/dashboard/billing?success=Welcome+to+Pro!"

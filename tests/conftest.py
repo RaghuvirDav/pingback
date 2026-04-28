@@ -29,6 +29,7 @@ def app_ctx(monkeypatch, tmp_path):
     monkeypatch.setenv("PADDLE_WEBHOOK_SECRET", "")
     monkeypatch.setenv("PADDLE_CLIENT_TOKEN", "")
     monkeypatch.setenv("PADDLE_PRICE_ID_MONTHLY", "")
+    monkeypatch.setenv("PADDLE_PRICE_ID_YEARLY", "")
     monkeypatch.setenv("RESEND_API_KEY", "")
 
     # Force re-import so module-level config picks up fresh env vars.

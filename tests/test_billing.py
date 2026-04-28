@@ -35,6 +35,47 @@ def test_upgrade_button_disabled_when_paddle_not_configured(client):
     assert "cdn.paddle.com" not in r.text
 
 
+def test_annual_toggle_hidden_when_yearly_price_unset(client):
+    signup_and_verify(client, "noyearly@example.com")
+    r = client.get("/dashboard/billing")
+    assert r.status_code == 200
+    assert "billing-cycle-toggle" not in r.text
+
+
+def test_annual_toggle_renders_when_yearly_price_set(monkeypatch, tmp_path):
+    """MAK-158: with both monthly and yearly price IDs configured, the toggle
+    UI and the yearly priceId both ship to the client."""
+    import importlib
+    import sys
+
+    from cryptography.fernet import Fernet
+    from starlette.testclient import TestClient
+
+    db_path = tmp_path / "pingback.db"
+    monkeypatch.setenv("DB_PATH", str(db_path))
+    monkeypatch.setenv("APP_ENV", "development")
+    monkeypatch.setenv("ENCRYPTION_KEY", Fernet.generate_key().decode())
+    monkeypatch.setenv("APP_BASE_URL", "http://localhost:8000")
+    monkeypatch.setenv("PADDLE_CLIENT_TOKEN", "live_token_test")
+    monkeypatch.setenv("PADDLE_PRICE_ID_MONTHLY", "pri_test_monthly")
+    monkeypatch.setenv("PADDLE_PRICE_ID_YEARLY", "pri_test_yearly")
+    for mod in list(sys.modules):
+        if mod == "pingback" or mod.startswith("pingback."):
+            del sys.modules[mod]
+    pingback_main = importlib.import_module("pingback.main")
+
+    with TestClient(pingback_main.app) as c:
+        signup_and_verify(c, "annual@example.com")
+        for path in ("/pricing", "/dashboard/billing"):
+            r = c.get(path)
+            assert r.status_code == 200, path
+            assert "billing-cycle-toggle" in r.text, path
+            assert 'data-cycle="yearly"' in r.text, path
+            assert "pri_test_monthly" in r.text, path
+            assert "pri_test_yearly" in r.text, path
+            assert "billed annually" in r.text, path
+
+
 def test_portal_without_customer_redirects_with_error(client):
     """A free user with no paddle_customer_id can't open the portal — the route
     must redirect back with an error, not 500."""

@@ -146,6 +146,7 @@ async def pricing(request: Request):
         PADDLE_DISCOUNT_ID_LAUNCH,
         PADDLE_ENVIRONMENT,
         PADDLE_PRICE_ID_MONTHLY,
+        PADDLE_PRICE_ID_YEARLY,
     )
     user = await _get_ui_user(request)
     return templates.TemplateResponse(request, "pricing.html", {
@@ -153,6 +154,7 @@ async def pricing(request: Request):
         "paddle_client_token": PADDLE_CLIENT_TOKEN,
         "paddle_environment": PADDLE_ENVIRONMENT,
         "paddle_price_monthly": PADDLE_PRICE_ID_MONTHLY,
+        "paddle_price_yearly": PADDLE_PRICE_ID_YEARLY,
         "paddle_discount_launch": PADDLE_DISCOUNT_ID_LAUNCH,
         "app_base_url": APP_BASE_URL,
     })
