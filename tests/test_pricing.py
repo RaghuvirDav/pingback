@@ -147,3 +147,42 @@ def test_monitor_limit_error_includes_upgrade_button_for_free(auth_client):
     assert r.status_code == 403
     assert "Upgrade to Pro" in r.text
     assert 'href="/pricing"' in r.text
+
+
+def test_monitor_cap_hit_renders_inline_paywall_modal_when_paddle_configured(auth_client, monkeypatch):
+    """When Paddle creds are present the cap-hit response inlines the upgrade
+    modal + Paddle.Checkout wiring so the user can convert without a /pricing
+    round-trip (MAK-160)."""
+    from pingback import config as cfg
+
+    monkeypatch.setattr(cfg, "PADDLE_CLIENT_TOKEN", "test_client_tok")
+    monkeypatch.setattr(cfg, "PADDLE_PRICE_ID_MONTHLY", "pri_test_monthly")
+    monkeypatch.setattr(cfg, "PADDLE_ENVIRONMENT", "sandbox")
+
+    for i in range(3):
+        auth_client.post(
+            "/dashboard/monitors/new",
+            data={
+                "name": f"m{i}",
+                "url": f"https://example.com/{i}",
+                "interval_seconds": "300",
+            },
+            follow_redirects=False,
+        )
+
+    r = auth_client.post(
+        "/dashboard/monitors/new",
+        data={
+            "name": "over",
+            "url": "https://example.com/over",
+            "interval_seconds": "300",
+        },
+        follow_redirects=False,
+    )
+    assert r.status_code == 403
+    assert 'id="cap-hit-modal"' in r.text
+    assert "https://cdn.paddle.com/paddle/v2/paddle.js" in r.text
+    assert "Paddle.Checkout.open" in r.text
+    assert "pri_test_monthly" in r.text
+    # Direct-checkout flow means the redundant in-form flash CTA is suppressed.
+    assert 'class="flash error"' not in r.text

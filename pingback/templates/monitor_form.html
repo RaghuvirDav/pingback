@@ -16,12 +16,18 @@
         <div class="page-sub">{{ 'Update the monitor configuration.' if monitor else 'Register a URL we should check on a schedule.' }}</div>
       </div>
 
-      {% if error %}
+      {% set paddle_modal_ready = cap_hit and paddle_client_token and paddle_price_monthly %}
+      {% if error and not paddle_modal_ready %}
       <div class="flash error" style="display:flex;align-items:center;justify-content:space-between;gap:12px">
         <span>{{ error }}</span>
         {% if upgrade_required %}
         <a class="btn btn-primary" href="/pricing" style="white-space:nowrap">Upgrade to Pro</a>
         {% endif %}
+      </div>
+      {% endif %}
+      {% if upgraded_resume %}
+      <div class="flash success" style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+        <span>Welcome to Pro — finish creating your monitor.</span>
       </div>
       {% endif %}
 
@@ -41,7 +47,7 @@
           </div>
           <div class="field">
             <label>Check interval <span class="hint">how often we ping it</span></label>
-            {% set iv = monitor.interval_seconds if monitor else (allowed_intervals[0].seconds if allowed_intervals else 300) %}
+            {% set iv = monitor.interval_seconds if monitor else (interval_seconds if interval_seconds else (allowed_intervals[0].seconds if allowed_intervals else 300)) %}
             <div class="seg" role="radiogroup" aria-label="Check interval">
               {% for opt in allowed_intervals %}
               <button type="button" data-interval="{{ opt.seconds }}" class="{{ 'active' if iv == opt.seconds else '' }}">{{ opt.label }}</button>
@@ -71,7 +77,7 @@
                 <div class="muted small" style="margin-top:2px">Your status page is at <span class="mono">/status/{{ user.id }}</span>.</div>
               </div>
               <input type="checkbox" id="is_public" name="is_public" value="1"
-                     {{ 'checked' if (monitor and monitor.is_public) else '' }}
+                     {{ 'checked' if ((monitor and monitor.is_public) or is_public) else '' }}
                      style="width:18px;height:18px;accent-color:var(--accent)">
             </label>
           </div>
@@ -110,4 +116,99 @@
     });
   });
 </script>
+
+{% if paddle_modal_ready %}
+<div id="cap-hit-modal" role="dialog" aria-modal="true" aria-labelledby="cap-hit-title"
+     style="position:fixed;inset:0;z-index:9999;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.6);padding:16px">
+  <div style="background:var(--bg);border:1px solid var(--line);border-radius:14px;max-width:460px;width:100%;padding:28px;box-shadow:0 30px 60px rgba(0,0,0,0.45)">
+    <div id="cap-hit-title" style="font-size:18px;font-weight:600;margin-bottom:6px">
+      {% if cap_hit_kind == 'monitors' %}You're at your monitor limit{% else %}Faster checks need Pro{% endif %}
+    </div>
+    <div class="muted small" style="margin-bottom:18px">
+      {% if cap_hit_kind == 'monitors' %}
+      Free plan keeps {{ current_monitor_limit }} monitors. You're using <strong>{{ current_monitor_count }}/{{ current_monitor_limit }}</strong>.
+      {% else %}
+      Free plan checks at most every {% if plan_floor_seconds % 60 == 0 %}{{ plan_floor_seconds // 60 }} min{% else %}{{ plan_floor_seconds }} sec{% endif %}.
+      {% endif %}
+    </div>
+    <div style="background:var(--bg-2);border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:18px">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">
+        <span class="mono small" style="color:var(--accent)">PRO</span>
+        <span style="font-size:18px;font-weight:600">$12<span class="muted small"> / mo</span></span>
+      </div>
+      <ul style="margin:0;padding-left:18px;font-size:14px;line-height:1.6">
+        <li>{{ pro_max_monitors }} monitors</li>
+        <li>Checks as fast as 1 min</li>
+        <li>{{ pro_history_days }}-day check history</li>
+        <li>SSL + Slack + webhook alerts</li>
+      </ul>
+    </div>
+    <div style="display:flex;gap:10px;justify-content:flex-end">
+      <button type="button" class="btn btn-ghost" id="cap-hit-cancel">Not now</button>
+      <button type="button" class="btn btn-primary" id="cap-hit-upgrade">Upgrade — $12/mo</button>
+    </div>
+  </div>
+</div>
+<script src="https://cdn.paddle.com/paddle/v2/paddle.js"></script>
+<script>
+  (function () {
+    var modal = document.getElementById('cap-hit-modal');
+    var cancel = document.getElementById('cap-hit-cancel');
+    var upgrade = document.getElementById('cap-hit-upgrade');
+    function close() { if (modal) modal.style.display = 'none'; }
+    if (cancel) cancel.addEventListener('click', close);
+    if (modal) modal.addEventListener('click', function (e) { if (e.target === modal) close(); });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') close(); });
+
+    Paddle.Environment.set("{{ paddle_environment|default('sandbox') }}");
+    Paddle.Initialize({ token: "{{ paddle_client_token }}" });
+
+    if (upgrade) upgrade.addEventListener('click', function () {
+      try {
+        localStorage.setItem('pingback_resume_monitor', JSON.stringify({
+          name: (document.getElementById('name') || {}).value || '',
+          url: (document.getElementById('url') || {}).value || '',
+          interval_seconds: (document.getElementById('interval_seconds') || {}).value || '',
+          is_public: (document.getElementById('is_public') || {}).checked ? 1 : 0
+        }));
+      } catch (e) {}
+      Paddle.Checkout.open({
+        items: [{ priceId: "{{ paddle_price_monthly }}", quantity: 1 }],
+        customer: { email: "{{ user.email }}" },
+        customData: { pingback_user_id: "{{ user.id }}", billing_cycle: "monthly", source: "monitor_cap_hit" },
+        {% if paddle_discount_launch %}discountId: "{{ paddle_discount_launch }}",{% endif %}
+        settings: {
+          successUrl: "{{ app_base_url }}/dashboard/monitors/new?upgraded=1"
+        }
+      });
+    });
+  })();
+</script>
+{% endif %}
+
+{% if upgraded_resume %}
+<script>
+  (function () {
+    try {
+      var raw = localStorage.getItem('pingback_resume_monitor');
+      if (!raw) return;
+      var d = JSON.parse(raw);
+      var nameEl = document.getElementById('name');
+      var urlEl = document.getElementById('url');
+      var ivEl = document.getElementById('interval_seconds');
+      var pubEl = document.getElementById('is_public');
+      if (nameEl && d.name) nameEl.value = d.name;
+      if (urlEl && d.url) urlEl.value = d.url;
+      if (ivEl && d.interval_seconds) {
+        ivEl.value = d.interval_seconds;
+        document.querySelectorAll('.seg [data-interval]').forEach(function (b) {
+          b.classList.toggle('active', b.getAttribute('data-interval') === String(d.interval_seconds));
+        });
+      }
+      if (pubEl && d.is_public) pubEl.checked = true;
+      localStorage.removeItem('pingback_resume_monitor');
+    } catch (e) {}
+  })();
+</script>
+{% endif %}
 {% endblock %}
