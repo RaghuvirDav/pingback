@@ -438,17 +438,69 @@ sudo systemctl start pingback
   ~750 KB), sha256 verified by `pingback-restore.sh`, restored to `/tmp`,
   integrity check passed, schema sha256 matches live DB.
 
-### Off-box copy + paging-on-failure
+### Off-box S3 copy (MAK-145)
 
-Out of scope for MAK-140 first cut and tracked separately:
+After the local snapshot succeeds, `backup-db.sh` optionally uploads the
+`.db.gz` and the `.sha256` sidecar to S3. The upload is non-fatal — if S3 is
+unreachable, the local copy remains the canonical artifact and
+`last_run.json` records `s3_uploaded:false`.
 
-- **Off-box copy to S3** — IAM user `pingback` is EC2-only (no `s3:*`),
-  so this needs a board-minted bucket + scoped IAM key. Tracked in MAK-140
-  follow-up.
-- **Page on missed/failed run** — UptimeRobot heartbeat monitors are paid
-  tier; until we upgrade or wire a Sentry cron monitor we rely on
-  `last_run.json` / `last_run.failed.json` and the systemd journal.
-  Tracked in the MAK-140 follow-up.
+Configuration in `/opt/pingback/.env` (chown root:pingback, chmod 640):
+
+```
+BACKUP_S3_BUCKET=pingback-backups-prod
+BACKUP_S3_PREFIX=backups/daily            # optional, default: backups/daily
+AWS_ACCESS_KEY_ID=...
+AWS_SECRET_ACCESS_KEY=...
+AWS_DEFAULT_REGION=us-east-1
+```
+
+The IAM key needs at minimum `s3:PutObject` and `s3:ListBucket` on
+`arn:aws:s3:::pingback-backups-prod` (and `/backups/*`). Bucket lifecycle
+should age objects: Standard 30 d → Glacier IR 90 d → expire 1 y. Total
+size is small (a few MB/day) so cost stays under a dollar a month.
+
+Verify after a manual run:
+
+```bash
+sudo systemctl start pingback-backup.service
+sudo cat /opt/pingback/backups/last_run.json   # s3_uploaded:true, s3_uri:"s3://…"
+aws s3 ls "s3://pingback-backups-prod/backups/daily/"
+```
+
+#### Restoring from S3
+
+```bash
+# 1. list available archives
+aws s3 ls "s3://pingback-backups-prod/backups/daily/" | tail
+
+# 2. pull the archive + sidecar to a temp dir
+TMPDIR=$(mktemp -d)
+aws s3 cp "s3://pingback-backups-prod/backups/daily/pingback-20260428-031000.db.gz"  "$TMPDIR/"
+aws s3 cp "s3://pingback-backups-prod/backups/daily/pingback-20260428-031000.sha256" "$TMPDIR/"
+
+# 3. run the standard restore helper from the temp dir
+sudo /usr/local/bin/pingback-restore.sh \
+  "$TMPDIR/pingback-20260428-031000.db.gz" \
+  --target /tmp/pingback-restore.db
+
+# 4. promote — see "Restoring from a backup" above
+```
+
+### Paging on a missed/failed nightly
+
+UptimeRobot heartbeat monitors are paid-tier only. Two tracked options for
+free-tier paging (pick one in the MAK-145 follow-up):
+
+- **Sentry cron monitor** — DSN already configured. POST to
+  `https://sentry.io/api/0/organizations/<org>/monitors/<slug>/checkins/`
+  inside `backup-db.sh` on success and on failure (via `ExecStopPost`).
+  Sentry alerts when a check-in is missed by N minutes.
+- **Surface `backup_age` on `/health`** — let the existing UptimeRobot
+  keyword check fire if the last successful run is older than ~30 h.
+
+Until paging is wired, ops still inspects `last_run.json` /
+`last_run.failed.json` and the systemd journal for missed runs.
 
 ## Admin dashboard at /admin (MAK-142)
 
