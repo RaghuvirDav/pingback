@@ -312,6 +312,29 @@ h1.page-title {
   background: var(--accent);
   box-shadow: 0 0 8px var(--accent);
 }
+a.status-pill.is-link {
+  text-decoration: none;
+  cursor: pointer;
+  color: var(--down);
+  background: oklch(0.70 0.19 25 / 0.12);
+  border-color: oklch(0.70 0.19 25 / 0.32);
+  transition: filter 0.15s ease;
+}
+a.status-pill.is-link .dot {
+  background: var(--down);
+  box-shadow: 0 0 8px var(--down);
+}
+a.status-pill.is-link:hover { filter: brightness(1.08); }
+a.status-pill.is-link:focus-visible {
+  outline: 2px solid var(--down);
+  outline-offset: 2px;
+}
+.list-head .filter-clear {
+  margin-left: 12px;
+  text-decoration: underline;
+  color: var(--accent);
+  cursor: pointer;
+}
 .status-hero h2 {
   font-size: 36px;
   font-weight: 600;

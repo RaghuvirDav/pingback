@@ -46,7 +46,7 @@
             All systems operational
           </span>
           {% else %}
-          <a href="#incidents" class="status-pill" style="text-decoration:none">
+          <a class="status-pill is-link" href="?filter=down#monitors" title="Show only failing monitors">
             <span class="dot"></span>
             {{ incident_count }} incident{{ 's' if incident_count != 1 else '' }}
           </a>
@@ -126,7 +126,8 @@
       {# ---------- MONITOR LIST ---------- #}
       <div class="list-head" id="monitors">
         <h3>Monitors</h3>
-        <span class="count mono">{{ monitors|length }} total</span>
+        <span class="count mono" data-monitor-count>{{ monitors|length }} total</span>
+        <a href="/dashboard#monitors" class="count mono filter-clear" data-filter-clear hidden>Showing failing only · clear</a>
       </div>
 
       <div class="monitors">
@@ -140,7 +141,7 @@
           <span></span>
         </div>
         {% for m in monitors %}
-        <a href="/dashboard/monitors/{{ m.id }}" class="mrow" style="color:inherit;text-decoration:none">
+        <a href="/dashboard/monitors/{{ m.id }}" class="mrow" data-status="{{ m.current_status }}" style="color:inherit;text-decoration:none">
           <div class="m-indicator {% if m.current_status == 'down' %}down{% elif m.current_status == 'error' %}deg{% elif m.current_status == 'unknown' %}paused{% endif %}"></div>
           <div>
             <div class="m-name">
@@ -205,4 +206,24 @@
     </div>
   </div>
 </div>
+<script>
+(function () {
+  var params = new URLSearchParams(window.location.search);
+  if (params.get('filter') !== 'down') return;
+  var rows = document.querySelectorAll('.monitors .mrow[data-status]');
+  var shown = 0;
+  rows.forEach(function (row) {
+    var status = row.getAttribute('data-status');
+    if (status === 'down' || status === 'error') {
+      shown += 1;
+    } else {
+      row.style.display = 'none';
+    }
+  });
+  var totalEl = document.querySelector('[data-monitor-count]');
+  if (totalEl) totalEl.textContent = shown + ' failing';
+  var clearEl = document.querySelector('[data-filter-clear]');
+  if (clearEl) clearEl.hidden = false;
+})();
+</script>
 {% endblock %}
