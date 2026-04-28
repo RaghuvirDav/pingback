@@ -355,10 +355,11 @@ status page:
 
 ### Live URLs
 
-Populate these once the account is live.
-
 Name | URL
 -----|----
 UptimeRobot dashboard | *(board-only, keep in password manager)*
-Public status page | *pending*
-Custom status domain | *pending domain purchase*
+Public status page | <https://stats.uptimerobot.com/BxZPlUvmOZ>
+Custom status domain | *pending domain purchase — CNAME `status.usepingback.com` → `stats.uptimerobot.com`*
+
+Monitor id: `802940146` (`pingback-prod-health`, HTTPS GET `https://usepingback.com/health`,
+5-min interval, 30 s timeout, keyword check `"status":"ok"`). Status page id: `1087783`.
