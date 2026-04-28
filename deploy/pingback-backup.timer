@@ -1,0 +1,11 @@
+[Unit]
+Description=Pingback nightly SQLite backup (03:30 UTC)
+
+[Timer]
+OnCalendar=*-*-* 03:30:00 UTC
+Persistent=true
+RandomizedDelaySec=300
+Unit=pingback-backup.service
+
+[Install]
+WantedBy=timers.target

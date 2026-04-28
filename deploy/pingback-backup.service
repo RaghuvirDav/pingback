@@ -1,0 +1,17 @@
+[Unit]
+Description=Pingback nightly SQLite backup
+After=pingback.service
+Wants=pingback.service
+
+[Service]
+Type=oneshot
+User=pingback
+Group=pingback
+ExecStart=/usr/local/bin/pingback-backup.sh
+ExecStopPost=/bin/sh -c '[ "$EXIT_STATUS" = "0" ] || printf "{\\"status\\":\\"failed\\",\\"ts\\":\\"%s\\",\\"exit_status\\":%s}\\n" "$(date -u +%%Y-%%m-%%dT%%H:%%M:%%SZ)" "$EXIT_STATUS" > /opt/pingback/backups/last_run.failed.json'
+StandardOutput=journal
+StandardError=journal
+Nice=10
+
+[Install]
+WantedBy=multi-user.target

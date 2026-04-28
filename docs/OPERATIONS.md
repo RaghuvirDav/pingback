@@ -363,3 +363,89 @@ Custom status domain | *pending domain purchase — CNAME `status.usepingback.co
 
 Monitor id: `802940146` (`pingback-prod-health`, HTTPS GET `https://usepingback.com/health`,
 5-min interval, 30 s timeout, keyword check `"status":"ok"`). Status page id: `1087783`.
+
+## SQLite backups: nightly + restore (MAK-140)
+
+The prod DB at `/opt/pingback/data/pingback.db` is in WAL mode. We snapshot
+it nightly via the SQLite online `.backup` API (safe to run while the service
+is live) and verify each archive with sha256 before keeping it.
+
+### What runs, when, where
+
+Unit | Path | Schedule
+-----|------|---------
+`pingback-backup.timer` | `/etc/systemd/system/pingback-backup.timer` | `*-*-* 03:30:00 UTC` (±5 min jitter)
+`pingback-backup.service` | `/etc/systemd/system/pingback-backup.service` | invoked by the timer; runs as `pingback:pingback`
+`/usr/local/bin/pingback-backup.sh` | source: `deploy/backup-db.sh` | does the snapshot + retention
+`/usr/local/bin/pingback-restore.sh` | source: `deploy/restore-db.sh` | verifies sha256 + decompresses to a target path
+
+Output layout under `/opt/pingback/backups/`:
+
+```
+daily/   pingback-YYYYMMDD-HHMMSS.db.gz   ← gzip of an online snapshot
+daily/   pingback-YYYYMMDD-HHMMSS.sha256  ← sha256sum -c -compatible sidecar
+weekly/  pingback-…                       ← Sunday runs are hard-linked here
+last_run.json                             ← latest success state (status, ts, file, bytes, sha256)
+last_run.failed.json                      ← only present if the last run failed
+```
+
+Retention: `DAILY_RETENTION=14`, `WEEKLY_RETENTION=8` (can be overridden by env
+in the unit). Pruning runs in the same pass as the snapshot.
+
+### Operator actions
+
+```bash
+# fire a backup right now (e.g. before a risky migration)
+sudo systemctl start pingback-backup.service
+
+# tail the journal for the last run
+sudo journalctl -u pingback-backup.service -n 40 --no-pager
+
+# inspect last-run state without parsing the journal
+sudo cat /opt/pingback/backups/last_run.json
+sudo cat /opt/pingback/backups/last_run.failed.json   # only if last run failed
+```
+
+### Restoring from a backup
+
+The restore helper does **not** touch the live DB. Always restore to a temp
+path first, validate, then promote.
+
+```bash
+# 1. pick the archive you want
+ls -1t /opt/pingback/backups/daily/pingback-*.db.gz | head
+
+# 2. verify sha256, decompress, run integrity_check, count tables
+sudo /usr/local/bin/pingback-restore.sh \
+  /opt/pingback/backups/daily/pingback-20260428-031000.db.gz \
+  --target /tmp/pingback-restore.db
+
+# 3. spot-check the restored copy
+sudo sqlite3 /tmp/pingback-restore.db \
+  'SELECT COUNT(*) FROM users; SELECT COUNT(*) FROM monitors;'
+
+# 4. promote (only if you actually want to roll prod back!)
+sudo systemctl stop pingback
+sudo cp /tmp/pingback-restore.db /opt/pingback/data/pingback.db
+sudo chown pingback:pingback /opt/pingback/data/pingback.db
+sudo rm -f /opt/pingback/data/pingback.db-shm /opt/pingback/data/pingback.db-wal
+sudo systemctl start pingback
+```
+
+### Verified
+
+- 2026-04-28: first nightly snapshot taken (`pingback-20260428-131716.db.gz`,
+  ~750 KB), sha256 verified by `pingback-restore.sh`, restored to `/tmp`,
+  integrity check passed, schema sha256 matches live DB.
+
+### Off-box copy + paging-on-failure
+
+Out of scope for MAK-140 first cut and tracked separately:
+
+- **Off-box copy to S3** — IAM user `pingback` is EC2-only (no `s3:*`),
+  so this needs a board-minted bucket + scoped IAM key. Tracked in MAK-140
+  follow-up.
+- **Page on missed/failed run** — UptimeRobot heartbeat monitors are paid
+  tier; until we upgrade or wire a Sentry cron monitor we rely on
+  `last_run.json` / `last_run.failed.json` and the systemd journal.
+  Tracked in the MAK-140 follow-up.
