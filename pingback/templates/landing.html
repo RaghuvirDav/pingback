@@ -45,10 +45,10 @@
               <div class="m-name">{{ m[0] }}</div>
               <div class="m-url">{{ m[1] }}</div>
             </div>
-            <div></div>
+            <div class="spark-cell"></div>
             <div class="m-metric tnum">{{ '%.2f'|format(m[2]) }}<span class="unit">%</span></div>
-            <div class="m-metric tnum"><span class="{% if loop.index == 3 %}bad{% endif %}">{{ m[3] }}</span><span class="unit">ms</span></div>
-            <div class="m-metric small muted mono">{{ m[4] }}s</div>
+            <div class="m-metric tnum p95-cell"><span class="{% if loop.index == 3 %}bad{% endif %}">{{ m[3] }}</span><span class="unit">ms</span></div>
+            <div class="m-metric small muted mono every-cell">{{ m[4] }}s</div>
             <span class="caret">{{ ic.i_chevron(14) }}</span>
           </div>
           {% endfor %}

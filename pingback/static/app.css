@@ -518,6 +518,7 @@ h1.page-title {
   gap: 16px;
   margin-top: 16px;
 }
+.two-col > * { min-width: 0; }
 
 .incident-list { display: flex; flex-direction: column; gap: 2px; }
 .incident {
@@ -1160,6 +1161,15 @@ textarea.input:focus-visible {
 /* Remove focus ring on mouse click, keep on keyboard */
 :focus:not(:focus-visible) { outline: none; }
 
+/* Sidebar drawer backdrop (visible only when open on narrow viewports) */
+.sidebar-backdrop {
+  position: fixed; inset: 0;
+  background: oklch(0.10 0.005 60 / 0.55);
+  backdrop-filter: blur(2px);
+  z-index: 40;
+  display: none;
+}
+
 /* Responsive sidebar — collapse below 900px */
 @media (max-width: 900px) {
   .app { grid-template-columns: 1fr; }
@@ -1167,15 +1177,20 @@ textarea.input:focus-visible {
     position: fixed;
     z-index: 50;
     top: 0; left: 0;
-    width: 248px;
+    width: min(280px, 84vw);
     transform: translateX(-100%);
     transition: transform 180ms ease;
     background: var(--bg-1);
     border-right: 1px solid var(--line);
+    overflow-y: auto;
+    overscroll-behavior: contain;
   }
   .sidebar.open { transform: translateX(0); }
+  body.sidebar-open { overflow: hidden; }
+  body.sidebar-open .sidebar-backdrop { display: block; }
   .topbar .menu-btn { display: inline-flex; }
   .topbar .search { display: none; }
+  .topbar { padding: 14px 16px; gap: 10px; }
   .page { padding: 20px; }
   .kpis { grid-template-columns: repeat(2, 1fr); }
   .two-col { grid-template-columns: 1fr; }
@@ -1183,13 +1198,14 @@ textarea.input:focus-visible {
   .billing-plan { grid-template-columns: 1fr; }
   .settings-grid { grid-template-columns: 1fr; gap: 16px; }
   .feature-grid { grid-template-columns: 1fr; }
-  .mrow { grid-template-columns: 22px 1fr 0.7fr 22px; }
+  .mrow { grid-template-columns: 22px 1fr 0.7fr 22px; gap: 12px; padding: 14px 16px; }
   .mrow .spark-cell,
   .mrow .p95-cell,
   .mrow .every-cell { display: none; }
   .mrow.head .spark-cell,
   .mrow.head .p95-cell,
   .mrow.head .every-cell { display: none; }
+  .m-name, .m-url { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .status-hero { padding: 20px; }
   .status-hero h2 { font-size: 28px; }
   .hero { padding: 60px 24px 60px; }
@@ -1197,6 +1213,135 @@ textarea.input:focus-visible {
   .cta-strip { padding: 40px 24px; margin: 24px; }
   .features { padding: 60px 24px; }
   .footer { padding: 22px 24px; flex-wrap: wrap; gap: 10px; }
+}
+
+/* Tablet/phone — stack page heads, denser KPIs, table scroll, etc. */
+@media (max-width: 720px) {
+  .page-head, .detail-head {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 14px;
+  }
+  .page-head .row, .detail-head .row { width: 100%; }
+  .page-head .row .btn,
+  .detail-head .row .btn { flex: 1; justify-content: center; }
+  h1.page-title { font-size: 24px; }
+  .detail-title { flex-wrap: wrap; gap: 10px; }
+  .detail-title h1 { font-size: 22px; }
+  .page-sub { font-size: 13px; margin-bottom: 18px; }
+
+  .status-hero { padding: 18px; gap: 18px; }
+  .status-hero h2 { font-size: 22px; margin: 12px 0 6px; }
+  .status-hero p { font-size: 14px; margin-bottom: 14px; }
+  .status-stats { grid-template-columns: 1fr 1fr; gap: 8px 12px; }
+  .status-stats > :nth-child(3) { grid-column: 1 / -1; }
+  .status-stats .s-value { font-size: 18px; }
+
+  /* Heatmap halves density on phones so cells are still visible */
+  .heatmap { grid-template-columns: repeat(45, 1fr); padding: 10px; min-height: 56px; }
+  .heatmap .cell { height: 32px; }
+  .heatmap-head { font-size: 10px; }
+
+  .kpis { grid-template-columns: 1fr 1fr; gap: 8px; }
+  .kpi { padding: 14px 16px; }
+  .kpi .k-value { font-size: 22px; }
+  .kpi .k-label { font-size: 10px; }
+
+  .chart-card { padding: 16px; }
+  .bars { height: 120px; padding: 10px; }
+  .bars .bar { min-width: 2px; max-width: 10px; }
+
+  /* Tables: horizontal scroll inside a flat card wrapper */
+  .card.flat { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .card.flat .table { min-width: 520px; }
+  .table thead th, .table tbody td { padding: 10px 14px; }
+
+  /* Incidents */
+  .incidents-panel { padding: 14px 16px; }
+  .incident-row { gap: 10px; padding: 12px 6px; }
+  .incident-error { font-size: 11px; }
+  .incident { gap: 10px; }
+  .incident-dur { font-size: 11px; }
+
+  /* Forms: segmented controls become equal-width grid */
+  .seg {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: 1fr;
+    width: 100%;
+  }
+  .seg button { padding: 10px 6px; font-size: 12px; }
+  .field label { font-size: 11px; }
+  .input, .select, textarea.input { font-size: 16px; padding: 12px 14px; } /* 16px prevents iOS zoom */
+
+  /* Modal & auth */
+  .modal-backdrop { padding: 12px; }
+  .modal { padding: 22px; max-height: 92vh; }
+  .auth-card { padding: 26px 22px; }
+  .centerpage { padding: 24px 16px; min-height: calc(100vh - 60px); }
+
+  /* Landing tweaks */
+  .hero { padding: 48px 20px 56px; }
+  .hero h1 { font-size: clamp(32px, 9vw, 56px); letter-spacing: -0.025em; }
+  .hero p.lead { font-size: 16px; }
+  .hero-cta { flex-direction: column; gap: 10px; }
+  .hero-cta .btn { width: 100%; justify-content: center; }
+  .hero-demo { padding: 0 16px; margin-top: 40px; }
+  .hero-demo-frame { border-radius: var(--radius); }
+  .hero-demo-bar { padding: 10px 12px; }
+  .hero-demo .heatmap { grid-template-columns: repeat(45, 1fr); padding: 10px; }
+  .hero-demo .heatmap .cell { height: 22px; }
+  .features { padding: 48px 20px; }
+  .features-head h2,
+  .cta-strip h2 { font-size: 28px; }
+  .feature { padding: 22px; }
+  .cta-strip { padding: 32px 20px; margin: 20px; }
+  .cta-strip .hero-cta { justify-content: center; }
+
+  /* Legal pages */
+  .legal { margin: 24px auto 48px; padding: 0 20px; font-size: 14px; }
+  .legal h1 { font-size: 26px; }
+
+  /* Audit log: stack rows */
+  .audit-row { grid-template-columns: 1fr; gap: 4px; padding: 12px 16px; }
+  .audit-row.head { display: none; }
+
+  /* Settings copy-status row */
+  .settings-grid + * { margin-top: 8px; }
+
+  /* Cards a touch tighter */
+  .card { padding: 18px; }
+  .card-value { font-size: 26px; }
+
+  /* Generic .row wraps so siblings don't push off-screen */
+  .row { flex-wrap: wrap; }
+}
+
+/* Very narrow phones (≤480px) — final compaction */
+@media (max-width: 480px) {
+  html, body { font-size: 14px; }
+  .page { padding: 16px 14px 56px; }
+  .topbar { padding: 12px 14px; }
+  .crumbs { font-size: 12px; gap: 6px; }
+  .crumbs > span:not(.cur) { display: none; }
+  .heatmap { grid-template-columns: repeat(30, 1fr); }
+  .heatmap .cell { height: 28px; }
+  .hero h1 { line-height: 1.05; }
+  .landing-nav { padding: 14px 16px; gap: 8px; }
+  .landing-nav .btn { padding: 7px 11px; font-size: 12px; }
+  .footer { padding: 18px 16px; font-size: 12px; }
+  .features-head h2,
+  .cta-strip h2 { font-size: 24px; }
+  .mrow { padding: 12px 14px; gap: 10px; }
+  .m-name { font-size: 14px; }
+  .kpi .k-value { font-size: 20px; }
+  .billing-plan--2col { grid-template-columns: 1fr; }
+}
+
+/* Pricing page — 2-col plan grid until phone breakpoint */
+.billing-plan--2col { grid-template-columns: 1fr 1fr; }
+@media (max-width: 720px) {
+  .billing-plan--2col { grid-template-columns: 1fr; }
 }
 
 .menu-btn { display: none; background: transparent; border: 0; color: var(--fg-1); padding: 6px; border-radius: 8px; }
