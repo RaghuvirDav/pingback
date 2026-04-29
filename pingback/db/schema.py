@@ -210,6 +210,11 @@ MIGRATIONS = [
     # by tzdata in 1993; some legacy seeds may still hold it. Convert to the
     # canonical form so digest scheduling and display agree.
     """UPDATE users SET timezone = 'Asia/Kolkata' WHERE timezone = 'Asia/Calcutta'""",
+    # MAK-163: human-readable, user-chosen slug for the public status page URL
+    # (`/status/<slug>`). UNIQUE so two users can't claim the same path; GUID
+    # remains a permanent fallback that 302s to the slug.
+    """ALTER TABLE users ADD COLUMN status_page_slug TEXT""",
+    """CREATE UNIQUE INDEX IF NOT EXISTS idx_users_status_page_slug ON users(status_page_slug)""",
 ]
 
 
@@ -229,3 +234,10 @@ async def initialize_database(db: aiosqlite.Connection) -> None:
         except Exception:
             pass  # Column already exists
     await db.commit()
+    # Backfill status-page slugs for users that predate MAK-163. Idempotent.
+    try:
+        from pingback.services.status_slug import backfill_status_slugs
+        await backfill_status_slugs(db)
+    except Exception:
+        # Slug backfill is best-effort — never block app startup on it.
+        pass
