@@ -76,18 +76,25 @@
         </div>
         <div class="heatmap-wrap">
           <div class="heatmap-head"><span>90 days</span><span>today →</span></div>
+          {% if heatmap_has_history %}
           <div class="heatmap">
-            {% for c in heatmap_cells or [] %}
+            {% for c in heatmap_cells %}
               <div class="cell {{ c }}" title="{{ c or 'up' }}"></div>
             {% endfor %}
-            {% if not heatmap_cells %}
-              {% for i in range(90) %}<div class="cell"></div>{% endfor %}
-            {% endif %}
           </div>
           <div class="heatmap-head" style="margin-top:8px;margin-bottom:0">
             <span>{{ overall_uptime if overall_uptime is defined else '—' }}% uptime</span>
             <span>{{ down_count }} down · {{ err_count }} error</span>
           </div>
+          {% else %}
+          <div class="heatmap heatmap-pending" role="status" aria-live="polite">
+            <span class="heatmap-pending-label">Building 90-day history…</span>
+          </div>
+          <div class="heatmap-head" style="margin-top:8px;margin-bottom:0">
+            <span class="muted">— uptime</span>
+            <span class="muted">awaiting first day</span>
+          </div>
+          {% endif %}
         </div>
       </div>
 

@@ -690,9 +690,34 @@ async def dashboard(request: Request):
     overall_uptime = round(sum(uptimes) / len(uptimes), 2) if uptimes else None
     avg_latency = round(sum(latencies) / len(latencies)) if latencies else None
 
-    # Heatmap summary: keep lightweight — mark today's cell worst-of-all.
-    cells = [""] * 90
+    total_checks_24h: int | None = None
+    try:
+        from pingback.db.rollups import count_user_checks_in_window
+        total_checks_24h = await count_user_checks_in_window(db, user["id"], 24 * 3600)
+    except Exception:
+        logger.exception("dashboard checks_24h query failed")
+        total_checks_24h = None
+
+    # 90-day heatmap: only render cells once we have ≥1 day of real check
+    # history. Until then, show the "Building 90-day history…" placeholder so
+    # we don't fabricate a green wall before any check has run (MAK-162).
+    has_history = False
     if monitors:
+        async with db.execute(
+            """SELECT 1 FROM check_results c
+               JOIN monitors m ON m.id = c.monitor_id
+               WHERE m.user_id = ?
+                 AND c.checked_at <= datetime('now', '-1 day')
+               LIMIT 1""",
+            (user["id"],),
+        ) as cur:
+            has_history = await cur.fetchone() is not None
+
+    cells: list[str] = []
+    if has_history:
+        # Pre-fill missing buckets with "empty" (neutral) — never green —
+        # then mark today's cell with the worst-of-all monitor status.
+        cells = ["empty"] * 90
         worst = "up"
         for m in monitors:
             s = m["current_status"]
@@ -701,15 +726,7 @@ async def dashboard(request: Request):
                 break
             if s == "error" and worst == "up":
                 worst = "deg"
-        cells[-1] = {"up": "", "deg": "deg", "down": "down"}.get(worst, "")
-
-    total_checks_24h: int | None = None
-    try:
-        from pingback.db.rollups import count_user_checks_in_window
-        total_checks_24h = await count_user_checks_in_window(db, user["id"], 24 * 3600)
-    except Exception:
-        logger.exception("dashboard checks_24h query failed")
-        total_checks_24h = None
+        cells[-1] = {"up": "", "deg": "deg", "down": "down"}.get(worst, "empty")
 
     return templates.TemplateResponse(request, "dashboard.html", {
         "user": user,
@@ -721,6 +738,7 @@ async def dashboard(request: Request):
         "overall_uptime": overall_uptime,
         "avg_latency": avg_latency,
         "heatmap_cells": cells,
+        "heatmap_has_history": has_history,
         "total_checks_24h": total_checks_24h,
     })
 
@@ -908,6 +926,8 @@ async def monitor_detail(request: Request, monitor_id: str):
         "last_response_ms": last_response_ms,
         "last_error": last_error,
         "checks": checks,
+        "checks_24h": len(checks),
+        "has_history": bool(checks),
         "response_times": response_times,
     })
 

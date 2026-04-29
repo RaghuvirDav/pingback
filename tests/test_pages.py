@@ -110,6 +110,93 @@ def test_incidents_pill_is_clickable_when_monitor_down(client):
     assert 'data-status="down"' in r.text
 
 
+def test_dashboard_first_run_does_not_fabricate_uptime_or_heatmap(client):
+    """Brand-new account, no monitors yet → empty state, no green heatmap."""
+    from tests.conftest import signup_and_verify
+
+    signup_and_verify(client, "first-run@example.com")
+    r = client.get("/dashboard")
+    assert r.status_code == 200
+    # No monitors yet → empty-state path renders, the heatmap and its placeholder
+    # are gated on having monitors so neither should appear.
+    assert "Building 90-day history" not in r.text
+    assert "heatmap" not in r.text or "No monitors yet" in r.text
+    assert "100.0%" not in r.text
+
+
+def test_dashboard_with_monitor_no_checks_shows_pending_heatmap(client):
+    """Monitor exists but no checks have run → placeholder, never a green wall."""
+    from tests.conftest import signup_and_verify
+
+    signup_and_verify(client, "pending-heatmap@example.com")
+    r = client.post(
+        "/dashboard/monitors/new",
+        data={"name": "Fresh", "url": "https://example.com", "interval_seconds": 300, "is_public": 0},
+        follow_redirects=False,
+    )
+    assert r.status_code == 303
+
+    r = client.get("/dashboard")
+    assert r.status_code == 200
+    # The placeholder must render; the cell-grid must not (otherwise the
+    # 90 default-green cells reappear).
+    assert "Building 90-day history" in r.text
+    assert 'class="cell ' not in r.text
+    # The hero "Uptime · 30d" stat should fall back to em-dash, not 100.0%.
+    assert "100.0%" not in r.text
+
+
+def test_monitor_detail_first_run_renders_awaiting_first_check(client):
+    """Monitor detail before any check runs: em-dash uptime + awaiting state."""
+    from tests.conftest import signup_and_verify
+
+    signup_and_verify(client, "monitor-detail-first@example.com")
+    r = client.post(
+        "/dashboard/monitors/new",
+        data={"name": "Fresh Monitor", "url": "https://example.com", "interval_seconds": 300, "is_public": 0},
+        follow_redirects=False,
+    )
+    assert r.status_code == 303
+    monitor_id = r.headers["location"].rsplit("/", 1)[-1]
+
+    r = client.get(f"/dashboard/monitors/{monitor_id}")
+    assert r.status_code == 200
+    assert "Awaiting first check" in r.text
+    # No fabricated 100% uptime or "healthy" badge before the first check
+    assert "100.0%" not in r.text
+    assert "▲ healthy" not in r.text
+
+
+def test_monitor_detail_after_first_check_shows_uptime(client):
+    """Once a check has been recorded, the real uptime KPI returns."""
+    import asyncio
+
+    from tests.conftest import signup_and_verify
+
+    signup_and_verify(client, "monitor-detail-history@example.com")
+    r = client.post(
+        "/dashboard/monitors/new",
+        data={"name": "Has Checks", "url": "https://example.com", "interval_seconds": 300, "is_public": 0},
+        follow_redirects=False,
+    )
+    assert r.status_code == 303
+    monitor_id = r.headers["location"].rsplit("/", 1)[-1]
+
+    from pingback.db.connection import get_database
+    from pingback.db.monitors import save_check_result
+
+    async def _seed_up():
+        db = await get_database()
+        await save_check_result(db, monitor_id, "up", 200, 123, None)
+
+    asyncio.run(_seed_up())
+
+    r = client.get(f"/dashboard/monitors/{monitor_id}")
+    assert r.status_code == 200
+    assert "Awaiting first check" not in r.text
+    assert "100.0%" in r.text
+
+
 def test_terms_page_renders(client):
     r = client.get("/terms")
     assert r.status_code == 200
