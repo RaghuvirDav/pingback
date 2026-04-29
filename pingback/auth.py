@@ -136,6 +136,41 @@ async def _lookup_user(token: str) -> dict | None:
     }
 
 
+async def lookup_user_by_id(user_id: str) -> dict | None:
+    """Look up a user by primary key. Mirrors the projection used by the
+    cookie-session UI lookup so dashboard `_get_ui_user(...)` keeps working
+    after MAK-167 stopped putting the API key in the cookie."""
+    db = await get_database()
+    async with db.execute(
+        """SELECT id, email, name, plan, paddle_customer_id, paddle_subscription_id,
+                  paddle_subscription_status, plan_renews_at, plan_cancel_at,
+                  email_verified, timezone
+             FROM users WHERE id = ?""",
+        (user_id,),
+    ) as cursor:
+        row = await cursor.fetchone()
+    if row is None:
+        return None
+    await db.execute(
+        "UPDATE users SET last_login_at = ? WHERE id = ?",
+        (datetime.now(timezone.utc).isoformat(), row["id"]),
+    )
+    await db.commit()
+    return {
+        "id": row["id"],
+        "email": decrypt_value(row["email"]),
+        "name": row["name"],
+        "plan": row["plan"],
+        "paddle_customer_id": row["paddle_customer_id"],
+        "paddle_subscription_id": row["paddle_subscription_id"],
+        "paddle_subscription_status": row["paddle_subscription_status"],
+        "plan_renews_at": row["plan_renews_at"],
+        "plan_cancel_at": row["plan_cancel_at"],
+        "email_verified": bool(row["email_verified"]),
+        "timezone": row["timezone"] or "Etc/UTC",
+    }
+
+
 async def lookup_user_by_email(email: str) -> dict | None:
     """Look up a user by (normalised) email. Returns full auth fields."""
     db = await get_database()
