@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% import "_brand.html" as brand %}
 {% import "_icons.html" as ic %}
-{% block title %}Status{% if user_id %} — {{ user_id }}{% endif %}{% endblock %}
+{% block title %}{{ page_name or 'Service' }} status — Pingback{% endblock %}
 {% block body %}
 <main class="main" id="main">
   <div class="landing-nav">
@@ -11,7 +11,7 @@
   </div>
 
   <div style="max-width:820px;margin:40px auto 80px;padding:0 24px">
-    <h1 class="page-title" style="font-size:32px">Service status</h1>
+    <h1 class="page-title" style="font-size:32px">{{ page_name }} status</h1>
     <div class="page-sub">Real-time uptime for the services below.</div>
 
     {% if monitors %}

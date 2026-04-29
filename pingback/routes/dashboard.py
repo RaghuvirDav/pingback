@@ -58,6 +58,12 @@ from pingback.services.plans import (
     limits_for,
     min_interval_for_plan,
 )
+from pingback.services.status_slug import (
+    _slug_taken,
+    assign_slug_if_missing,
+    generate_unique_slug,
+    validate_slug,
+)
 from pingback.session import clear_session, get_session_key, set_session
 
 _TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
@@ -391,6 +397,12 @@ async def signup_submit(
     api_key = secrets.token_urlsafe(32)
     now = datetime.now(timezone.utc).isoformat()
     verification_token = generate_token()
+    # Pre-compute the public-status-page slug from name → email-local. The
+    # generator queries the users table for collisions, so it's safe to call
+    # before the INSERT — this user's row doesn't exist yet, no self-collision.
+    status_slug = await generate_unique_slug(
+        db, name=name or None, email=email, user_id=user_id,
+    )
 
     # Signup is the GDPR consent moment for the daily digest. Without this,
     # the consent filter in `get_users_due_for_digest` quietly drops every
@@ -402,8 +414,8 @@ async def signup_submit(
                password_hash, email_verified,
                verification_token, verification_expires_at,
                created_at, updated_at, last_login_at,
-               consent_given_at, timezone
-           ) VALUES (?, ?, ?, ?, 'free', ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, 'Etc/UTC')""",
+               consent_given_at, timezone, status_page_slug
+           ) VALUES (?, ?, ?, ?, 'free', ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, 'Etc/UTC', ?)""",
         (
             user_id, encrypt_value(email), email_hash_value, name or None,
             encrypt_value(api_key), hash_api_key(api_key),
@@ -411,6 +423,7 @@ async def signup_submit(
             verification_token, token_expiry(VERIFICATION_TTL_HOURS),
             now, now, now,
             now,
+            status_slug,
         ),
     )
 
@@ -982,16 +995,46 @@ async def settings_page(request: Request):
         return _redirect("/login")
     db = await get_database()
 
+    # Backfill on read so legacy sessions (predating MAK-163) get a slug
+    # without forcing a re-login. assign_slug_if_missing is a no-op when set.
+    slug = user.get("status_page_slug") or await assign_slug_if_missing(
+        db, user_id=user["id"], name=user.get("name"), email=user.get("email"),
+    )
     user_timezone = user.get("timezone") or "Etc/UTC"
-    status_url = f"{APP_BASE_URL}/status/{user['id']}"
+    status_url = f"{APP_BASE_URL}/status/{slug}"
 
     return templates.TemplateResponse(request, "settings.html", {
         "user": user,
         "user_timezone": user_timezone,
+        "status_slug": slug,
         "status_url": status_url,
         "success": request.query_params.get("success"),
         "error": request.query_params.get("error"),
     })
+
+
+@router.post(
+    "/dashboard/settings/status-page-slug",
+    dependencies=[Depends(csrf_protect)],
+)
+async def update_status_page_slug(request: Request, slug: str = Form("")):
+    user = await _get_ui_user(request)
+    if user is None:
+        return _redirect("/login")
+    candidate = (slug or "").strip().lower()
+    err = validate_slug(candidate)
+    if err:
+        return _redirect(f"/dashboard/settings?error={err.replace(' ', '+')}")
+    db = await get_database()
+    if await _slug_taken(db, candidate, except_user_id=user["id"]):
+        return _redirect("/dashboard/settings?error=That+slug+is+already+taken.")
+    now = datetime.now(timezone.utc).isoformat()
+    await db.execute(
+        "UPDATE users SET status_page_slug = ?, updated_at = ? WHERE id = ?",
+        (candidate, now, user["id"]),
+    )
+    await db.commit()
+    return _redirect("/dashboard/settings?success=Status+page+URL+updated")
 
 
 @router.post(
@@ -1160,15 +1203,35 @@ async def delete_account(request: Request):
 # Public status page (Tailwind version replaces inline HTML)
 # ---------------------------------------------------------------------------
 
-@router.get("/status/{user_id}", response_class=HTMLResponse)
-async def public_status_page(request: Request, user_id: str):
-    db = await get_database()
-    monitors_with_checks = await find_monitors_with_last_check(db, user_id)
+@router.get("/status/{slug_or_id}", response_class=HTMLResponse)
+async def public_status_page(request: Request, slug_or_id: str):
+    """Render a user's public status page.
 
-    if not monitors_with_checks:
-        async with db.execute("SELECT id FROM users WHERE id = ?", (user_id,)) as cur:
-            if await cur.fetchone() is None:
-                raise HTTPException(status_code=404, detail="User not found")
+    Resolution order: status_page_slug → users.id (legacy GUID URLs). When a
+    GUID URL is hit and the owner has a slug, we 302 to the canonical
+    `/status/<slug>` URL — keeps existing shared links alive while the slug
+    becomes the indexable, branded one (MAK-163).
+    """
+    db = await get_database()
+
+    async with db.execute(
+        """SELECT id, name, status_page_slug FROM users
+           WHERE status_page_slug = ? OR id = ?
+           ORDER BY (status_page_slug = ?) DESC LIMIT 1""",
+        (slug_or_id, slug_or_id, slug_or_id),
+    ) as cur:
+        owner = await cur.fetchone()
+    if owner is None:
+        raise HTTPException(status_code=404, detail="Status page not found")
+
+    canonical = owner["status_page_slug"]
+    # Caller used the GUID but the owner has a slug — redirect to the slug URL.
+    if canonical and slug_or_id != canonical:
+        return RedirectResponse(url=f"/status/{canonical}", status_code=302)
+
+    user_id = owner["id"]
+    owner_name = owner["name"]
+    monitors_with_checks = await find_monitors_with_last_check(db, user_id)
 
     view_monitors = []
     for mwc in monitors_with_checks:
@@ -1215,10 +1278,16 @@ async def public_status_page(request: Request, user_id: str):
         else:
             overall_class, overall_label = "partial", "Partial outage"
 
+    # Display name for the <title> + header. Falls back to slug → "Service" so
+    # there's never a raw GUID in the title (MAK-163).
+    display_name = (owner_name or "").strip() or canonical or "Service"
+
     session_user = await _get_ui_user(request)
     return templates.TemplateResponse(request, "status.html", {
         "user": session_user,
         "user_id": user_id,
+        "page_slug": canonical,
+        "page_name": display_name,
         "monitors": view_monitors,
         "overall_class": overall_class,
         "overall_label": overall_label,

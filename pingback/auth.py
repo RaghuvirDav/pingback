@@ -97,7 +97,7 @@ async def _lookup_user(token: str) -> dict | None:
     async with db.execute(
         """SELECT id, email, name, plan, paddle_customer_id, paddle_subscription_id,
                   paddle_subscription_status, plan_renews_at, plan_cancel_at,
-                  email_verified, timezone
+                  email_verified, timezone, status_page_slug
              FROM users WHERE api_key_hash = ?""",
         (token_hash,),
     ) as cursor:
@@ -107,7 +107,7 @@ async def _lookup_user(token: str) -> dict | None:
         async with db.execute(
             """SELECT id, email, name, plan, paddle_customer_id, paddle_subscription_id,
                       paddle_subscription_status, plan_renews_at, plan_cancel_at,
-                      email_verified, timezone
+                      email_verified, timezone, status_page_slug
                  FROM users WHERE api_key = ?""",
             (token,),
         ) as cursor:
@@ -132,6 +132,7 @@ async def _lookup_user(token: str) -> dict | None:
         "plan_cancel_at": row["plan_cancel_at"],
         "email_verified": bool(row["email_verified"]),
         "timezone": row["timezone"] or "Etc/UTC",
+        "status_page_slug": row["status_page_slug"],
     }
 
 
