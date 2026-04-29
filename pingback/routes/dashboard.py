@@ -8,10 +8,16 @@ from datetime import datetime, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError, available_timezones
 
-from fastapi import APIRouter, Form, HTTPException, Request
+from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
+from pingback.rate_limit import (
+    require_forgot_rate_limit,
+    require_login_rate_limit,
+    require_reset_rate_limit,
+    require_signup_rate_limit,
+)
 from pingback.auth import (
     MIN_PASSWORD_LENGTH,
     RESET_TTL_HOURS,
@@ -252,7 +258,11 @@ async def login_page(request: Request):
     )
 
 
-@router.post("/login", response_class=HTMLResponse)
+@router.post(
+    "/login",
+    response_class=HTMLResponse,
+    dependencies=[Depends(require_login_rate_limit)],
+)
 async def login_submit(
     request: Request,
     email: str = Form(...),
@@ -333,7 +343,11 @@ async def signup_page(request: Request):
     )
 
 
-@router.post("/signup", response_class=HTMLResponse)
+@router.post(
+    "/signup",
+    response_class=HTMLResponse,
+    dependencies=[Depends(require_signup_rate_limit)],
+)
 async def signup_submit(
     request: Request,
     email: str = Form(...),
@@ -505,7 +519,11 @@ async def forgot_password_page(request: Request):
     )
 
 
-@router.post("/forgot-password", response_class=HTMLResponse)
+@router.post(
+    "/forgot-password",
+    response_class=HTMLResponse,
+    dependencies=[Depends(require_forgot_rate_limit)],
+)
 async def forgot_password_submit(request: Request, email: str = Form(...)):
     user = await lookup_user_by_email(email)
     # Always show the same confirmation — never leak which emails have accounts.
@@ -553,7 +571,11 @@ async def reset_password_page(request: Request):
     )
 
 
-@router.post("/reset-password", response_class=HTMLResponse)
+@router.post(
+    "/reset-password",
+    response_class=HTMLResponse,
+    dependencies=[Depends(require_reset_rate_limit)],
+)
 async def reset_password_submit(
     request: Request,
     token: str = Form(...),
