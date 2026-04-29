@@ -38,6 +38,22 @@ def test_health_endpoint(client):
     assert r.json().get("status") in ("ok", "healthy", "up")
 
 
+def test_healthz_pings_db_and_returns_version(client):
+    r = client.get("/healthz")
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["ok"] is True
+    assert body["version"]
+    assert r.headers.get("X-Pingback-Version") == body["version"]
+
+
+def test_version_header_on_every_response(client):
+    r = client.get("/health")
+    assert r.headers.get("X-Pingback-Version")
+    r = client.get("/login")
+    assert r.headers.get("X-Pingback-Version")
+
+
 def test_api_requires_bearer_token(client):
     r = client.post("/api/monitors", json={"name": "x", "url": "https://x.com", "interval_seconds": 300})
     assert r.status_code in (401, 403)
