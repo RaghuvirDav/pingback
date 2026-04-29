@@ -28,10 +28,12 @@ ExecStart=/opt/pingback/current/venv/bin/gunicorn pingback.main:app \
     --access-logfile - \
     --error-logfile -
 
-# `systemctl reload pingback` -> SIGHUP -> gunicorn graceful worker reload.
-# Old workers finish in-flight requests, new workers pick up the new release
-# dir via the WorkingDirectory symlink. Combined with nginx
-# proxy_next_upstream, in-flight requests never see a 502.
+# NOTE: deploy/release.sh uses `systemctl restart`, NOT `reload`. SIGHUP
+# only re-forks workers off the existing master, whose cwd was resolved
+# through /opt/pingback/current at master-start time and is now frozen
+# to the previous release inode — so SIGHUP-forked workers re-import
+# the OLD release. ExecReload is kept here for manual config-only
+# reloads (e.g. log file rotation) but is NOT how new code goes live.
 ExecReload=/bin/kill -HUP $MAINPID
 KillMode=mixed
 KillSignal=SIGTERM

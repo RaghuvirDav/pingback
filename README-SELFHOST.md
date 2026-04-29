@@ -119,9 +119,13 @@ Full details in [`docs/OPERATIONS.md`](docs/OPERATIONS.md).
 - Sign up for a local account, create a monitor pointing at `https://example.com`, and wait one check interval (default 5 min). The monitor should flip to green.
 - `sudo journalctl -u pingback -n 50 --no-pager` — tail app logs.
 
-## 7a. Deploys and rollback (zero-downtime)
+## 7a. Deploys and rollback (Phase 1 — near-zero-downtime)
 
-Pingback uses a versioned-release layout so production updates do not drop in-flight requests. Each deploy lands in its own directory under `/opt/pingback/releases/<git-sha>/` and `/opt/pingback/current` is an atomic symlink to the active release. `systemctl reload pingback` (SIGHUP) triggers a graceful gunicorn worker reload that drains existing requests before the old workers exit; nginx `proxy_next_upstream` retries any transient 502/504 from a dying worker against a fresh one.
+Pingback uses a versioned-release layout so production updates do not require operator intervention to roll back. Each deploy lands in its own directory under `/opt/pingback/releases/<git-sha>/` and `/opt/pingback/current` is an atomic symlink to the active release.
+
+**Phase 1 trade-off.** Single-process gunicorn cannot pick up new code on `systemctl reload` (SIGHUP) — its master cwd is resolved through the `current` symlink at service-start time and is frozen to that inode. Worker forks inherit the frozen cwd, so SIGHUP-spawned workers re-import the OLD release. We therefore use `systemctl restart`, which re-execs gunicorn against the new symlink target. Cost: a ~2-4 second window during which new connections see 502; nginx `proxy_next_upstream` (twin-entry upstream + 5s tries timeout) catches in-flight requests that complete inside the window. Measured failure rate at 8 RPS during a deploy: ~0.8% (3/380). Rollback: 0% over 30s sample because the rollback path skips unpack/pip/preflight.
+
+Phase 2 ([MAK-180](#)) lifts this to true zero-downtime with two systemd units on different ports + nginx blue/green flip.
 
 **Layout**
 
@@ -169,9 +173,9 @@ ssh -i .ssh/pingback-ec2.pem ec2-user@<host> "sudo /opt/pingback/current/deploy/
 
 By default the script reads `/opt/pingback/releases/.previous` (written by `release.sh` on every deploy) and points `current` at that release. To roll to a specific older release, pass its sha: `sudo deploy/rollback.sh <sha>`.
 
-**Acceptance test (zero 502s under load)**
+**Acceptance test (near-zero 502s under load)**
 
-From a workstation with `hey` installed, drive 10 RPS at `/healthz` for 60 seconds while a deploy runs in another shell. Both the deploy window and a subsequent rollback should report zero failed requests:
+From a workstation with `hey` installed, drive 10 RPS at `/healthz` for 60 seconds while a deploy runs in another shell. The deploy window typically reports ~1% failed requests (the gunicorn restart gap); rollback reports 0%.
 
 ```bash
 hey -z 60s -c 10 -q 1 https://<host>/healthz
