@@ -153,13 +153,22 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
             duration_ms_var.reset(dur_token)
 
 
+_HEALTH_PROBE_PATHS = {"/health", "/healthz"}
+
+
 class HTTPSRedirectMiddleware(BaseHTTPMiddleware):
-    """Redirect HTTP requests to HTTPS when APP_ENV is 'production'."""
+    """Redirect HTTP requests to HTTPS when APP_ENV is 'production'.
+
+    Health-probe paths (``/health`` / ``/healthz``) are exempt so deploy
+    scripts and uptime monitors can hit ``http://127.0.0.1:8000/healthz``
+    without chasing a redirect to ``https://127.0.0.1:8000/...`` (which
+    would fail TLS handshake against a loopback cert).
+    """
 
     async def dispatch(
         self, request: Request, call_next: RequestResponseEndpoint
     ) -> Response:
-        if APP_ENV == "production":
+        if APP_ENV == "production" and request.url.path not in _HEALTH_PROBE_PATHS:
             # Check the scheme — also honour X-Forwarded-Proto from reverse proxies
             proto = request.headers.get("x-forwarded-proto", request.url.scheme)
             if proto == "http":
