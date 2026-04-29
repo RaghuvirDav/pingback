@@ -272,7 +272,9 @@ def test_subscription_canceled_with_scheduled_change_keeps_pro_until_effective(b
 
 def test_subscription_past_due_keeps_user_on_pro(billing_client):
     """past_due means Paddle is still retrying; the user shouldn't lose access
-    yet. Only canceled/expired events flip plan to free."""
+    yet. Only canceled/expired events flip plan to free. We also stamp
+    paddle_subscription_status='past_due' so the dashboard can render the
+    dunning banner without re-querying Paddle (MAK-161)."""
     user_id = _signup_with_customer(billing_client, "pd@example.com", "ctm_pd")
     con = sqlite3.connect(billing_client.db_path)
     con.execute("UPDATE users SET plan = 'pro' WHERE id = ?", (user_id,))
@@ -288,6 +290,13 @@ def test_subscription_past_due_keeps_user_on_pro(billing_client):
     )
     assert r.status_code == 200
     assert _user_plan(billing_client, user_id)[0] == "pro"
+
+    con = sqlite3.connect(billing_client.db_path)
+    status = con.execute(
+        "SELECT paddle_subscription_status FROM users WHERE id = ?", (user_id,)
+    ).fetchone()[0]
+    con.close()
+    assert status == "past_due"
 
 
 def test_payment_failed_does_not_change_plan(billing_client):
