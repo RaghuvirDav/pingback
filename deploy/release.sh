@@ -83,16 +83,18 @@ ln -sfn "$ENV_FILE" "$RELEASE_DIR/.env"
 ln -sfn "$DATA_DIR" "$RELEASE_DIR/data"
 
 # Build the release venv. Seed from previous release with hardlinks (cheap
-# on the same fs) so unchanged wheels don't re-download. pip install runs
-# `--upgrade-strategy only-if-needed` so unchanged requirements are a no-op.
+# on the same fs) so unchanged wheels don't re-download. We deliberately do
+# NOT run `python -m venv --upgrade` over the seeded venv — `cp -al`
+# preserves the bin/python symlink that points at the system interpreter,
+# and `--upgrade --copies` then trips over its own symlink ("source and
+# destination are the same file"). pyvenv.cfg already encodes `home =
+# /usr/bin`, which is unchanged by relocating the venv, so direct binary
+# invocation (e.g. `venv/bin/python`) works from any release path.
 PY_BIN="python3.11"
 command -v "$PY_BIN" >/dev/null 2>&1 || PY_BIN="python3"
 if [[ -n "$PREV_TARGET" && -d "$PREV_TARGET/venv" ]]; then
   log "seeding venv from $PREV_TARGET/venv"
   cp -al "$PREV_TARGET/venv" "$RELEASE_DIR/venv"
-  # The python symlinks inside the venv point at $PY_BIN — recreate the
-  # venv metadata so pip works against the new release path.
-  "$PY_BIN" -m venv --upgrade --copies "$RELEASE_DIR/venv" >/dev/null
 else
   log "creating fresh venv"
   "$PY_BIN" -m venv "$RELEASE_DIR/venv"
