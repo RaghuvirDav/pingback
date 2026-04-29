@@ -357,12 +357,20 @@ status page:
 
 Name | URL
 -----|----
+Public status page (branded, primary) | <https://status.usepingback.com/>
 UptimeRobot dashboard | *(board-only, keep in password manager)*
-Public status page | <https://stats.uptimerobot.com/BxZPlUvmOZ>
-Custom status domain | *pending domain purchase — CNAME `status.usepingback.com` → `stats.uptimerobot.com`*
+UptimeRobot PSP (kept as backup) | <https://stats.uptimerobot.com/BxZPlUvmOZ>
 
-Monitor id: `802940146` (`pingback-prod-health`, HTTPS GET `https://usepingback.com/health`,
-5-min interval, 30 s timeout, keyword check `"status":"ok"`). Status page id: `1087783`.
+The branded page is served from EC2 by nginx
+(`/etc/nginx/conf.d/status.usepingback.com.conf`), which rewrites `/` to the
+existing `/status/{slug}` route for the seeded `pingback` user (MAK-182). The
+UptimeRobot monitor + PSP below stays running as an off-box backup so we keep
+external visibility if the EC2 box is the thing that's down — deprecate
+post-launch once we're confident.
+
+UptimeRobot monitor id: `802940146` (`pingback-prod-health`, HTTPS GET
+`https://usepingback.com/health`, 5-min interval, 30 s timeout, keyword check
+`"status":"ok"`). Status page id: `1087783`.
 
 ## SQLite backups: nightly + restore (MAK-140)
 
