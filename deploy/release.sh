@@ -99,8 +99,11 @@ else
   log "creating fresh venv"
   "$PY_BIN" -m venv "$RELEASE_DIR/venv"
 fi
-"$RELEASE_DIR/venv/bin/pip" install --quiet --upgrade pip
-"$RELEASE_DIR/venv/bin/pip" install --quiet --upgrade-strategy only-if-needed -r "$RELEASE_DIR/requirements.txt"
+# Invoke pip via `python -m pip` so a hardlink-seeded venv (whose pip script
+# still has the previous release's path baked into its shebang) installs
+# into the NEW release venv instead of the seed.
+"$RELEASE_DIR/venv/bin/python" -m pip install --quiet --upgrade pip
+"$RELEASE_DIR/venv/bin/python" -m pip install --quiet --upgrade-strategy only-if-needed -r "$RELEASE_DIR/requirements.txt"
 
 chown -R "$APP_USER:$APP_GROUP" "$RELEASE_DIR"
 
