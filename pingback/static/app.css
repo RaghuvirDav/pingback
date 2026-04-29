@@ -376,8 +376,18 @@ a.status-pill.is-link:focus-visible {
 }
 .heatmap .cell.dim { background: oklch(0.92 0.21 120 / 0.55); }
 .heatmap .cell.dim2 { background: oklch(0.92 0.21 120 / 0.28); }
+.heatmap .cell.empty { background: var(--bg-2); border: 1px solid var(--line); }
 .heatmap .cell.down { background: var(--down); }
 .heatmap .cell.deg { background: var(--degraded); }
+.heatmap.heatmap-pending {
+  display: flex; align-items: center; justify-content: center;
+  padding: 18px; min-height: 80px; background: transparent;
+  border: 1px dashed var(--line); border-radius: 10px;
+}
+.heatmap-pending-label {
+  font-size: 12px; color: var(--fg-3); font-family: var(--ff-mono);
+  text-transform: uppercase; letter-spacing: 0.08em;
+}
 .heatmap-head {
   display: flex; justify-content: space-between;
   font-size: 11px; color: var(--fg-3); font-family: var(--ff-mono);

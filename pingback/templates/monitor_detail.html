@@ -35,10 +35,15 @@
       <div class="kpis">
         <div class="kpi">
           <div class="k-label">Uptime · 30d</div>
+          {% if has_history %}
           <div class="k-value tnum">{{ uptime }}%</div>
           <div class="k-delta {% if uptime >= 99 %}up-d{% elif uptime < 95 %}down-d{% endif %}">
             {% if uptime >= 99 %}▲ healthy{% elif uptime >= 95 %}— acceptable{% else %}▼ attention{% endif %}
           </div>
+          {% else %}
+          <div class="k-value tnum"><span class="muted">—</span></div>
+          <div class="k-delta">Awaiting first check</div>
+          {% endif %}
         </div>
         <div class="kpi">
           <div class="k-label">Last response</div>
