@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any
 
 import httpx
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
@@ -32,6 +32,7 @@ from pingback.config import (
     PADDLE_PRODUCT_ID,
     PADDLE_WEBHOOK_SECRET,
 )
+from pingback.csrf import csrf_protect, register_csrf_globals
 from pingback.db.connection import get_database
 from pingback.encryption import decrypt_value
 from pingback.routes.dashboard import _digest_timezone_options, _get_ui_user, _redirect
@@ -47,6 +48,7 @@ def _interval_label(seconds: int) -> str:
 
 _TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
 templates = Jinja2Templates(directory=str(_TEMPLATES_DIR))
+register_csrf_globals(templates)
 
 router = APIRouter()
 logger = logging.getLogger("pingback.billing")
@@ -96,7 +98,10 @@ async def billing_page(request: Request):
 # Customer portal — manage / cancel subscription
 # ---------------------------------------------------------------------------
 
-@router.post("/dashboard/billing/portal")
+@router.post(
+    "/dashboard/billing/portal",
+    dependencies=[Depends(csrf_protect)],
+)
 async def create_portal_session(request: Request):
     user = await _get_ui_user(request)
     if user is None:

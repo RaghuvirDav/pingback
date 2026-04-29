@@ -13,6 +13,7 @@
       {% if error %}<div class="flash error">{{ error }}</div>{% endif %}
 
       <form method="post" action="/signup">
+        {{ csrf_input(request) }}
         {% if upgrade == 'pro' %}
         <input type="hidden" name="upgrade" value="pro">
         {% endif %}

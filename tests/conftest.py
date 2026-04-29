@@ -42,11 +42,47 @@ def app_ctx(monkeypatch, tmp_path):
     return pingback_main
 
 
+def install_csrf_autoinject(c):
+    """Wrap a TestClient so form POSTs auto-include a valid CSRF token.
+
+    Every state-changing form POST now requires a `csrf_token` field plus a
+    matching `pb_csrf` cookie (MAK-168). Tests don't care about the token —
+    they care about the route's behaviour — so we transparently inject it.
+
+    Skipped for `json=` and `content=` requests (Paddle webhook, JSON XHR);
+    those endpoints aren't CSRF-protected anyway.
+
+    Exposes `client.raw_post` for CSRF tests that need the un-wrapped path.
+    """
+    from pingback.csrf import CSRF_COOKIE_NAME, compute_csrf_token
+
+    original_post = c.post
+
+    def patched_post(url, *args, **kwargs):
+        if kwargs.get("json") is not None or kwargs.get("content") is not None:
+            return original_post(url, *args, **kwargs)
+        data = kwargs.get("data") or {}
+        if isinstance(data, dict) and "csrf_token" not in data:
+            cookie_val = c.cookies.get(CSRF_COOKIE_NAME)
+            if not cookie_val:
+                # Any GET against the app is enough to mint the cookie.
+                c.get("/login")
+                cookie_val = c.cookies.get(CSRF_COOKIE_NAME)
+            if cookie_val:
+                kwargs["data"] = {**data, "csrf_token": compute_csrf_token(cookie_val)}
+        return original_post(url, *args, **kwargs)
+
+    c.raw_post = original_post  # type: ignore[attr-defined]
+    c.post = patched_post  # type: ignore[assignment]
+    return c
+
+
 @pytest.fixture
 def client(app_ctx):
     from starlette.testclient import TestClient
 
     with TestClient(app_ctx.app) as c:
+        install_csrf_autoinject(c)
         yield c
 
 

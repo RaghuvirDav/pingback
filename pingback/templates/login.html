@@ -14,6 +14,7 @@
       {% if error %}<div class="flash error">{{ error }}</div>{% endif %}
 
       <form method="post" action="/login">
+        {{ csrf_input(request) }}
         <div class="field">
           <label for="email">Email</label>
           <input class="input" type="email" id="email" name="email" required autofocus

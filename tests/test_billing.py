@@ -64,7 +64,10 @@ def test_annual_toggle_renders_when_yearly_price_set(monkeypatch, tmp_path):
             del sys.modules[mod]
     pingback_main = importlib.import_module("pingback.main")
 
+    from tests.conftest import install_csrf_autoinject
+
     with TestClient(pingback_main.app) as c:
+        install_csrf_autoinject(c)
         signup_and_verify(c, "annual@example.com")
         for path in ("/pricing", "/dashboard/billing"):
             r = c.get(path)
@@ -96,7 +99,10 @@ def test_launch25_promo_band_renders_for_free_user_when_discount_configured(monk
             del sys.modules[mod]
     pingback_main = importlib.import_module("pingback.main")
 
+    from tests.conftest import install_csrf_autoinject
+
     with TestClient(pingback_main.app) as c:
+        install_csrf_autoinject(c)
         signup_and_verify(c, "promo@example.com")
         r = c.get("/dashboard/billing")
         assert r.status_code == 200

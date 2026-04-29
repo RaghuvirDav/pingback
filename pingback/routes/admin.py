@@ -19,12 +19,14 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
 from pingback.config import ADMIN_EMAILS, SENTRY_DASHBOARD_URL
+from pingback.csrf import register_csrf_globals
 from pingback.db.connection import get_database
 from pingback.encryption import decrypt_value
 from pingback.routes.dashboard import _get_ui_user
 
 _TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
 templates = Jinja2Templates(directory=str(_TEMPLATES_DIR))
+register_csrf_globals(templates)
 
 logger = logging.getLogger("pingback.admin")
 router = APIRouter()

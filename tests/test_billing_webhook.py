@@ -62,8 +62,11 @@ def billing_app(monkeypatch, tmp_path):
 def billing_client(billing_app):
     from starlette.testclient import TestClient
 
+    from tests.conftest import install_csrf_autoinject
+
     pingback_main, db_path = billing_app
     with TestClient(pingback_main.app) as c:
+        install_csrf_autoinject(c)
         c.db_path = db_path  # type: ignore[attr-defined]
         yield c
 

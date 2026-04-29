@@ -11,6 +11,7 @@ from fastapi.templating import Jinja2Templates
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from pingback.config import DEBUG_BOOM_ENABLED, HOST, PORT
+from pingback.csrf import CSRFCookieMiddleware, register_csrf_globals
 from pingback.db.connection import close_database, get_database
 from pingback.logging_config import configure_logging
 from pingback.middleware import (
@@ -58,6 +59,7 @@ app.mount(
 _templates = Jinja2Templates(
     directory=str(Path(__file__).resolve().parent / "templates")
 )
+register_csrf_globals(_templates)
 
 
 @app.exception_handler(404)
@@ -84,6 +86,7 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
 
 
 app.add_middleware(AuditLogMiddleware)
+app.add_middleware(CSRFCookieMiddleware)
 app.add_middleware(HTTPSRedirectMiddleware)
 app.add_middleware(RequestContextMiddleware)
 app.include_router(health_router)

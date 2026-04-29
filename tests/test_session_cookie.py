@@ -64,7 +64,10 @@ def test_cookie_secure_off_by_default_in_dev(monkeypatch, tmp_path):
     pingback_main, db_path = _bootstrap_app(monkeypatch, tmp_path)
     from starlette.testclient import TestClient
 
+    from tests.conftest import install_csrf_autoinject
+
     with TestClient(pingback_main.app) as c:
+        install_csrf_autoinject(c)
         r = _signup_then_verify(c, "nosecure@example.com", db_path)
         set_cookie = r.headers.get("set-cookie", "")
         assert "pb_session=" in set_cookie
@@ -79,7 +82,10 @@ def test_cookie_secure_enabled_via_env(monkeypatch, tmp_path):
     pingback_main, db_path = _bootstrap_app(monkeypatch, tmp_path, SESSION_COOKIE_SECURE="1")
     from starlette.testclient import TestClient
 
+    from tests.conftest import install_csrf_autoinject
+
     with TestClient(pingback_main.app) as c:
+        install_csrf_autoinject(c)
         r = _signup_then_verify(c, "secure@example.com", db_path)
         set_cookie = r.headers.get("set-cookie", "")
         assert "pb_session=" in set_cookie
@@ -94,7 +100,10 @@ def test_cookie_secure_enabled_via_app_env_production(monkeypatch, tmp_path):
 
     # APP_ENV=production enables HTTPSRedirectMiddleware — wrap with a
     # `https://` base_url to avoid getting a 307 before the Set-Cookie lands.
+    from tests.conftest import install_csrf_autoinject
+
     with TestClient(pingback_main.app, base_url="https://testserver") as c:
+        install_csrf_autoinject(c)
         r = _signup_then_verify(c, "prod@example.com", db_path)
         set_cookie = r.headers.get("set-cookie", "")
         assert "Secure" in set_cookie, set_cookie
