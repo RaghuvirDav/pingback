@@ -206,6 +206,10 @@ MIGRATIONS = [
     # page can render a past_due dunning banner without calling Paddle. plan
     # alone can't represent past_due — we keep the user on Pro during retries.
     """ALTER TABLE users ADD COLUMN paddle_subscription_status TEXT""",
+    # MAK-164: canonicalise stored IANA tz names. `Asia/Calcutta` was deprecated
+    # by tzdata in 1993; some legacy seeds may still hold it. Convert to the
+    # canonical form so digest scheduling and display agree.
+    """UPDATE users SET timezone = 'Asia/Kolkata' WHERE timezone = 'Asia/Calcutta'""",
 ]
 
 

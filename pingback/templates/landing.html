@@ -1,8 +1,20 @@
 {% extends "base.html" %}
 {% import "_icons.html" as ic %}
 {% block title %}Pingback — Uptime, stripped to the essentials.{% endblock %}
+{% block head %}
+<meta name="description" content="Pingback is a minimal, self-hostable uptime monitor. Deploy in an afternoon — no sprawling dashboards, no surprise invoices, just the signal you need.">
+<meta property="og:title" content="Pingback — Uptime, stripped to the essentials.">
+<meta property="og:description" content="A minimal, self-hostable uptime monitor you can deploy in an afternoon. No sprawling dashboards, no surprise invoices.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://usepingback.com/">
+<meta property="og:image" content="https://usepingback.com/static/logo.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Pingback — Uptime, stripped to the essentials.">
+<meta name="twitter:description" content="A minimal, self-hostable uptime monitor. Deploy in an afternoon. Just the signal.">
+<meta name="twitter:image" content="https://usepingback.com/static/logo.png">
+{% endblock %}
 {% block body %}
-<div class="main landing" role="main">
+<main class="main landing" id="main">
   {% include "nav.html" %}
 
   <div class="hero">
@@ -99,7 +111,7 @@
   </div>
 
   {% import "_brand.html" as brand %}
-  <div class="footer">
+  <footer class="footer">
     <span class="brand" style="padding:0">{{ brand.brand_logo(20) }}</span>
     <span class="spacer"></span>
     <a href="/terms">Terms</a>
@@ -111,6 +123,6 @@
     <span>© 2026</span>
     <span>·</span>
     <span>Built with FastAPI + SQLite</span>
-  </div>
-</div>
+  </footer>
+</main>
 {% endblock %}

@@ -7,7 +7,7 @@
 {% block body %}
 <div class="app">
   {% include "_sidebar.html" %}
-  <div class="main" role="main">
+  <main class="main" id="main">
     {% include "_topbar.html" %}
     <div class="page">
 
@@ -25,12 +25,13 @@
       </div>
 
       {% if welcome %}
-      <div class="flash success">
+      <div class="flash success" id="welcome-banner" data-welcome-banner role="status">
         {{ ic.i_sparkle(16) }}
         <div>
           <strong>Welcome to Pingback{% if user.name %}, {{ user.name }}{% endif %}!</strong>
           Add your first URL to start tracking uptime.
         </div>
+        <button type="button" class="flash-close" data-welcome-dismiss aria-label="Dismiss welcome message">×</button>
       </div>
       {% endif %}
 
@@ -211,7 +212,7 @@
       {% endif %}
 
     </div>
-  </div>
+  </main>
 </div>
 <script>
 (function () {
@@ -231,6 +232,26 @@
   if (totalEl) totalEl.textContent = shown + ' failing';
   var clearEl = document.querySelector('[data-filter-clear]');
   if (clearEl) clearEl.hidden = false;
+})();
+</script>
+<script>
+// MAK-164: dismissible welcome banner. Persists across reloads so the
+// `?welcome=1` query stops nagging once the user closes it.
+(function () {
+  var banner = document.querySelector('[data-welcome-banner]');
+  if (!banner) return;
+  try {
+    if (localStorage.getItem('pb_welcome_dismissed') === '1') {
+      banner.style.display = 'none';
+      return;
+    }
+  } catch (e) { /* private mode */ }
+  var btn = banner.querySelector('[data-welcome-dismiss]');
+  if (!btn) return;
+  btn.addEventListener('click', function () {
+    banner.style.display = 'none';
+    try { localStorage.setItem('pb_welcome_dismissed', '1'); } catch (e) {}
+  });
 })();
 </script>
 {% endblock %}

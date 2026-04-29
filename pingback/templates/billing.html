@@ -6,7 +6,7 @@
 {% block body %}
 <div class="app">
   {% include "_sidebar.html" %}
-  <div class="main" role="main">
+  <main class="main" id="main">
     {% include "_topbar.html" %}
     <div class="page" style="max-width:1040px">
 
@@ -180,7 +180,7 @@
       {% endif %}
 
     </div>
-  </div>
+  </main>
 </div>
 
 {% if user.plan != 'pro' and paddle_client_token and paddle_price_monthly %}

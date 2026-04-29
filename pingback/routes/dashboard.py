@@ -967,6 +967,9 @@ async def update_notifications(
     user = await _get_ui_user(request)
     if user is None:
         return _redirect("/login")
+    # MAK-164: canonicalise deprecated tzdata alias on settings save too.
+    if timezone_name == "Asia/Calcutta":
+        timezone_name = "Asia/Kolkata"
     try:
         ZoneInfo(timezone_name)
     except ZoneInfoNotFoundError:
@@ -1003,6 +1006,10 @@ async def update_my_timezone(request: Request):
     tz_name = (body or {}).get("timezone")
     if not isinstance(tz_name, str) or not tz_name:
         raise HTTPException(status_code=400, detail="Missing timezone")
+    # MAK-164: canonicalise deprecated tzdata aliases on write so we don't
+    # accumulate fresh `Asia/Calcutta` rows from older browsers/JS shims.
+    if tz_name == "Asia/Calcutta":
+        tz_name = "Asia/Kolkata"
     try:
         ZoneInfo(tz_name)
     except ZoneInfoNotFoundError:

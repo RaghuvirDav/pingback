@@ -55,7 +55,9 @@ def test_dashboard_has_role_main_and_aria_current(client):
     signup_and_verify(client, "a11y@example.com")
     r = client.get("/dashboard")
     assert r.status_code == 200
-    assert 'role="main"' in r.text
+    # MAK-164: now uses the <main> element (implicit role=main) + skip link.
+    assert '<main' in r.text and 'id="main"' in r.text
+    assert 'class="skip-link"' in r.text
     # Overview is the active route here.
     assert 'aria-current="page"' in r.text
     # The active marker should appear on the Overview link, not Settings.
@@ -75,7 +77,8 @@ def test_dashboard_has_role_main_and_aria_current(client):
 
 def test_landing_has_role_main(client):
     r = client.get("/")
-    assert 'role="main"' in r.text
+    # MAK-164: <main> element provides the implicit main landmark.
+    assert '<main' in r.text and 'id="main"' in r.text
 
 
 def test_incidents_pill_is_clickable_when_monitor_down(client):
