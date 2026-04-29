@@ -35,12 +35,53 @@ SPF record that includes `_spf.resend.com`.
 
 ## Step 2 — Namecheap DNS
 
+> **Important blocker discovered 2026-04-29:** Namecheap → Mail Settings
+> mode is **Email Forwarding**. That mode (a) auto-manages the apex MX
+> rows for `eforward1–5.registrar-servers.com`, (b) **locks the apex SPF
+> TXT** so it can't be edited from Advanced DNS, and (c) **hides MX from
+> the Advanced DNS dropdown**. To verify the apex in Resend we need both
+> a merged apex SPF and a `send.usepingback.com` MX — neither is
+> possible while in Email Forwarding mode. Path is to switch to
+> **Custom MX**, replicate the eforward MX rows manually, then add the
+> Resend rows.
+
 Log in to Namecheap → **Domain List → Manage `usepingback.com` →
 Advanced DNS**.
 
-### 2a. Merge the SPF record (do NOT add a second TXT)
+### 2a. Capture current apex MX values (so you can revert)
 
-Existing apex SPF row:
+Already captured via `dig MX usepingback.com @dns1.registrar-servers.com`
+on 2026-04-29:
+
+| Priority | Mailserver                          |
+| -------- | ----------------------------------- |
+| 10       | `eforward1.registrar-servers.com.`  |
+| 10       | `eforward2.registrar-servers.com.`  |
+| 10       | `eforward3.registrar-servers.com.`  |
+| 15       | `eforward4.registrar-servers.com.`  |
+| 20       | `eforward5.registrar-servers.com.`  |
+
+These five rows MUST be re-added under Custom MX immediately after the
+mode switch, otherwise `hello@usepingback.com` inbound forwarding stops
+working.
+
+### 2b. Switch Mail Settings → Custom MX
+
+In **Mail Settings** (the same screen as Email Forwarding), open the
+mode dropdown and choose **Custom MX**. Save. The apex SPF row that
+was previously locked becomes editable, and the **MX Record** option
+appears in the Advanced DNS Add-Record dropdown.
+
+### 2c. Re-add the 5 eforward MX rows under Host Records
+
+Click **Add New Record** five times, with `Host = @` and the priority
++ value pairs from step 2a. Save All Changes. **Do not skip this step**
+— missing these rows means inbound `hello@` mail starts bouncing
+immediately.
+
+### 2d. Merge the apex SPF (do NOT add a second TXT)
+
+The existing apex SPF row should now be editable:
 
 ```
 v=spf1 include:spf.efwd.registrar-servers.com ~all
@@ -55,18 +96,32 @@ v=spf1 include:_spf.resend.com include:spf.efwd.registrar-servers.com ~all
 A domain may have only one SPF TXT (RFC 7208) — adding a second silently
 breaks both. Edit, don't append.
 
-### 2b. Add the 3 DKIM CNAMEs
+### 2e. Add the Resend records from step 1
 
-Add three CNAME rows from step 1. Namecheap auto-appends the apex, so
-the Host field is just `resend._domainkey`, not the full FQDN.
+Add the rows shown in the Resend dashboard. Modern Resend layout for a
+freshly-added apex looks like:
 
-| Type  | Host                  | Target                         | TTL  |
-| ----- | --------------------- | ------------------------------ | ---- |
-| CNAME | `resend._domainkey`   | (from Resend dashboard step 1) | Auto |
-| CNAME | `resend2._domainkey`  | (from Resend dashboard step 1) | Auto |
-| CNAME | `resend3._domainkey`  | (from Resend dashboard step 1) | Auto |
+| Type  | Host (Namecheap)        | Value (from Resend dashboard)              | TTL  |
+| ----- | ----------------------- | ------------------------------------------ | ---- |
+| TXT   | `resend._domainkey`     | `p=...` long DKIM public key               | Auto |
+| MX    | `send` (priority 10)    | `feedback-smtp.us-east-1.amazonses.com.`   | Auto |
+| TXT   | `send`                  | `v=spf1 include:amazonses.com ~all`        | Auto |
 
-### 2c. (Optional) Tighten DMARC `rua`
+If your dashboard still shows the older "3 CNAMEs" format, use those
+instead — Resend honours both. Either way, copy host/value verbatim
+from the dashboard. Namecheap auto-appends `.usepingback.com`, so the
+host field is just `resend._domainkey` / `send`, not the full FQDN.
+
+### 2f. Smoke-test inbound BEFORE clicking Verify in Resend
+
+After saving all rows, send a test email from any external account to
+`hello@usepingback.com` and confirm it arrives in your gmail under the
+`+hello_pingback` label (the existing forwarder route). If it does not
+arrive within 2 minutes, **switch Mail Settings back to Email
+Forwarding immediately** — that restores the auto-managed MX rows.
+Then escalate; do not proceed to Resend verification.
+
+### 2g. (Recommended) Tighten DMARC `rua`
 
 Existing `_dmarc` is `v=DMARC1; p=none;` — works as-is. If you want
 aggregate reports, change to:
