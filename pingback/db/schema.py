@@ -202,6 +202,10 @@ MIGRATIONS = [
     # double-send. Webhook-level idempotency on event_id only catches exact
     # webhook retries, not Paddle re-emitting the same logical event.
     """ALTER TABLE users ADD COLUMN pro_welcome_sent_at TEXT""",
+    # MAK-161: cache the last-known Paddle subscription status so the billing
+    # page can render a past_due dunning banner without calling Paddle. plan
+    # alone can't represent past_due — we keep the user on Pro during retries.
+    """ALTER TABLE users ADD COLUMN paddle_subscription_status TEXT""",
 ]
 
 

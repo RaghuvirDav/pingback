@@ -19,6 +19,25 @@
       {% if success %}<div class="flash success">{{ success }}</div>{% endif %}
       {% if error %}<div class="flash error">{{ error }}</div>{% endif %}
 
+      {% if user.paddle_subscription_status == 'past_due' %}
+      <div class="flash warn" role="alert" style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+        <div>
+          <strong>Your last payment failed.</strong>
+          Update your card to keep Pro — Paddle will retry automatically.
+        </div>
+        <form method="post" action="/dashboard/billing/portal" style="margin:0">
+          <button class="btn btn-primary" type="submit">Update payment method</button>
+        </form>
+      </div>
+      {% endif %}
+
+      {% if user.plan != 'pro' and paddle_discount_launch %}
+      <div class="promo-band" role="note" style="margin:0 0 18px">
+        <span class="mono small">LAUNCH25</span>
+        <span>First 3 months <strong>$9/mo</strong> on Pro. Auto-applied at checkout.</span>
+      </div>
+      {% endif %}
+
       <div class="billing-plan">
         <div class="plan {% if user.plan == 'free' %}current{% endif %}">
           <div class="row" style="justify-content:space-between">

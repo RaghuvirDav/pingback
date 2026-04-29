@@ -299,11 +299,12 @@ async def _sync_subscription(data: dict) -> None:
             """UPDATE users
                   SET plan = 'pro',
                       paddle_subscription_id = ?,
+                      paddle_subscription_status = ?,
                       plan_renews_at = ?,
                       plan_cancel_at = ?,
                       updated_at = ?
                 WHERE paddle_customer_id = ?""",
-            (sub_id, next_renewal, cancel_at, now, customer_id),
+            (sub_id, status, next_renewal, cancel_at, now, customer_id),
         )
     else:
         # canceled (immediate), expired, etc. → free now.
@@ -311,6 +312,7 @@ async def _sync_subscription(data: dict) -> None:
             """UPDATE users
                   SET plan = 'free',
                       paddle_subscription_id = NULL,
+                      paddle_subscription_status = NULL,
                       plan_renews_at = NULL,
                       plan_cancel_at = NULL,
                       updated_at = ?
