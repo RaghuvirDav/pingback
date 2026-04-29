@@ -2,14 +2,18 @@
 from __future__ import annotations
 
 
-def test_session_cookie_round_trip(app_ctx):
-    from pingback.session import _sign, _verify
+def test_session_id_signature_round_trip(app_ctx):
+    """The cookie wraps a random session id with an HMAC tag — verify a fresh
+    pair round-trips and a tampered tag is rejected (MAK-167)."""
+    from pingback.session import _new_session_id, _sign_session_id, _verify_signed_session_id
 
-    signed = _sign("hello-world")
-    assert _verify(signed) == "hello-world"
-    # Tampered sig is rejected.
+    sid = _new_session_id()
+    signed = _sign_session_id(sid)
+    assert _verify_signed_session_id(signed) == sid
     tampered = signed[:-1] + ("a" if signed[-1] != "a" else "b")
-    assert _verify(tampered) is None
+    assert _verify_signed_session_id(tampered) is None
+    assert _verify_signed_session_id("") is None
+    assert _verify_signed_session_id("no-dot-here") is None
 
 
 def test_audit_log_written_for_api_request(client, app_ctx):
@@ -18,13 +22,11 @@ def test_audit_log_written_for_api_request(client, app_ctx):
     requests regardless of plan. We assert against the DB directly."""
     import sqlite3
 
-    from pingback.session import _verify
     from pingback.config import DB_PATH
 
-    from tests.conftest import signup_and_verify
+    from tests.conftest import api_key_for_email, signup_and_verify
     signup_and_verify(client, "audit@example.com")
-    cookie = client.cookies.get("pb_session").strip('"')
-    api_key = _verify(cookie)
+    api_key = api_key_for_email("audit@example.com")
     headers = {"Authorization": f"Bearer {api_key}"}
 
     r = client.post(

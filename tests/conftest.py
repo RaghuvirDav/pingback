@@ -101,6 +101,28 @@ def _verification_token_for(email: str) -> str:
     return row["verification_token"]
 
 
+def api_key_for_email(email: str) -> str:
+    """Read the user's plaintext API key directly from the test DB.
+
+    MAK-167 stopped putting the API key in the session cookie, so tests that
+    used to fish it out of `pb_session` need a different path. The DB still
+    holds the encrypted key — decrypt it here for tests that exercise
+    Bearer-auth JSON endpoints.
+    """
+    from pingback.auth import hash_email
+    from pingback.config import DB_PATH
+    from pingback.encryption import decrypt_value
+
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.row_factory = sqlite3.Row
+        row = conn.execute(
+            "SELECT api_key FROM users WHERE email_hash = ?",
+            (hash_email(email),),
+        ).fetchone()
+    assert row is not None and row["api_key"], f"no api_key on file for {email!r}"
+    return decrypt_value(row["api_key"])
+
+
 def signup_and_verify(
     client,
     email: str,

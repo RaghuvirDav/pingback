@@ -10,7 +10,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from pingback.config import DEBUG_BOOM_ENABLED, HOST, PORT
+from pingback.config import DEBUG_BOOM_ENABLED, HOST, PORT, validate_secrets
 from pingback.csrf import CSRFCookieMiddleware, register_csrf_globals
 from pingback.db.connection import close_database, get_database
 from pingback.logging_config import configure_logging
@@ -39,6 +39,9 @@ logger = logging.getLogger("pingback")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # MAK-167: refuse to boot in production with missing/default secrets so a
+    # silent fallback to dev keys can never reach a real deployment.
+    validate_secrets()
     await get_database()
     start_scheduler()
     logger.info("Pingback server started on %s:%d", HOST, PORT)

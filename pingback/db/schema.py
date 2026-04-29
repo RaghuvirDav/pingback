@@ -215,6 +215,20 @@ MIGRATIONS = [
     # remains a permanent fallback that 302s to the slug.
     """ALTER TABLE users ADD COLUMN status_page_slug TEXT""",
     """CREATE UNIQUE INDEX IF NOT EXISTS idx_users_status_page_slug ON users(status_page_slug)""",
+    # MAK-167: server-side session table. The cookie used to carry the user's
+    # signed API key in plaintext — one cookie compromise leaked the API key
+    # too. Now the cookie carries only a random session id; user_id is looked
+    # up here. created_at lets us audit suspicious longevity; expires_at lets
+    # us cap session lifetime cheaply at lookup time.
+    """CREATE TABLE IF NOT EXISTS sessions (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        expires_at TEXT NOT NULL,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    )""",
+    """CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id)""",
+    """CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON sessions(expires_at)""",
 ]
 
 

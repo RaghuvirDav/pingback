@@ -368,11 +368,10 @@ def test_unauthenticated_routes_protected(client):
 
 def test_api_key_bearer_still_works_after_signup(client):
     """Programmatic API-key auth must continue working alongside email+password."""
-    from pingback.session import _verify
+    from tests.conftest import api_key_for_email
 
     signup_and_verify(client, "bearer@example.com")
-    cookie = client.cookies.get("pb_session").strip('"')
-    api_key = _verify(cookie)
+    api_key = api_key_for_email("bearer@example.com")
     assert api_key
 
     # Use the Bearer token to create a monitor via the JSON API.

@@ -22,13 +22,13 @@ from pingback.auth import (
     MIN_PASSWORD_LENGTH,
     RESET_TTL_HOURS,
     VERIFICATION_TTL_HOURS,
-    _lookup_user,
     generate_token,
     hash_api_key,
     hash_email,
     hash_password,
     is_token_expired,
     lookup_user_by_email,
+    lookup_user_by_id,
     token_expiry,
     verify_password,
 )
@@ -64,7 +64,15 @@ from pingback.services.status_slug import (
     generate_unique_slug,
     validate_slug,
 )
-from pingback.session import clear_session, get_session_key, set_session
+from pingback.session import (
+    clear_session_cookie,
+    create_session,
+    delete_session,
+    delete_sessions_for_user,
+    lookup_session_user_id,
+    read_session_cookie,
+    set_session_cookie,
+)
 
 _TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
 templates = Jinja2Templates(directory=str(_TEMPLATES_DIR))
@@ -80,11 +88,49 @@ router = APIRouter()
 # ---------------------------------------------------------------------------
 
 async def _get_ui_user(request: Request) -> dict | None:
-    """Return the authenticated user from the session cookie, or None."""
-    api_key = get_session_key(request)
-    if not api_key:
+    """Return the authenticated user from the session cookie, or None.
+
+    MAK-167: the cookie now carries an opaque session id, not the user's API
+    key. Look up the session row server-side and resolve to a user."""
+    session_id = read_session_cookie(request)
+    if not session_id:
         return None
-    return await _lookup_user(api_key)
+    db = await get_database()
+    user_id = await lookup_session_user_id(db, session_id)
+    if not user_id:
+        return None
+    return await lookup_user_by_id(user_id)
+
+
+async def _start_session(response, user_id: str) -> None:
+    """Create a fresh session row + write the signed cookie. Use this any time
+    a user (re-)authenticates: login, email-verify-as-login, password reset."""
+    db = await get_database()
+    session_id = await create_session(db, user_id)
+    set_session_cookie(response, session_id)
+
+
+async def _end_session(request: Request, response) -> None:
+    """Delete the current session row and clear the cookie."""
+    session_id = read_session_cookie(request)
+    if session_id:
+        try:
+            db = await get_database()
+            await delete_session(db, session_id)
+        except Exception:
+            pass  # cookie clear below still happens
+    clear_session_cookie(response)
+
+
+async def _rotate_session(request: Request, response, user_id: str) -> None:
+    """Invalidate every existing session for this user, then issue a new one.
+
+    Called on password change so that an attacker holding a stolen cookie is
+    booted as soon as the legitimate user notices and changes their password."""
+    db = await get_database()
+    await delete_sessions_for_user(db, user_id)
+    session_id = await create_session(db, user_id)
+    set_session_cookie(response, session_id)
 
 
 def _require_login(user: dict | None) -> dict:
@@ -331,9 +377,11 @@ async def login_submit(
             status_code=200,
         )
 
-    api_key = decrypt_value(user["api_key_encrypted"])
     response = _redirect("/dashboard")
-    set_session(response, api_key)
+    # MAK-167: issue a fresh opaque session id; rotating on every successful
+    # login means an old stolen cookie is invalidated as soon as the real user
+    # logs back in.
+    await _rotate_session(request, response, user["id"])
     return response
 
 
@@ -504,9 +552,9 @@ async def verify_email(request: Request):
     # pricing page ready to checkout.
     upgrade = request.query_params.get("upgrade", "")
     landing = "/pricing?signed_up=1" if upgrade == "pro" else "/dashboard?welcome=1"
-    api_key = decrypt_value(row["api_key"])
     response = _redirect(landing)
-    set_session(response, api_key)
+    # MAK-167: cookie carries an opaque session id, not the API key.
+    await _start_session(response, row["id"])
     return response
 
 
@@ -638,16 +686,17 @@ async def reset_password_submit(
     )
     await db.commit()
 
-    api_key = decrypt_value(row["api_key"])
     response = _redirect("/dashboard")
-    set_session(response, api_key)
+    # MAK-167: a successful reset is also a re-auth. Drop every existing
+    # session for this user so any pre-reset stolen cookie is dead.
+    await _rotate_session(request, response, row["id"])
     return response
 
 
 @router.post("/logout", dependencies=[Depends(csrf_protect)])
-async def logout():
+async def logout(request: Request):
     response = _redirect("/")
-    clear_session(response)
+    await _end_session(request, response)
     return response
 
 
@@ -1139,7 +1188,12 @@ async def change_password(
         (hash_password(new_password), now, user["id"]),
     )
     await db.commit()
-    return _redirect("/dashboard/settings?success=Password+updated")
+    # MAK-167: rotate session on password change. Anyone holding a stolen
+    # cookie is logged out; the user keeps their current browser session via
+    # the freshly-issued cookie.
+    response = _redirect("/dashboard/settings?success=Password+updated")
+    await _rotate_session(request, response, user["id"])
+    return response
 
 
 @router.post(
@@ -1179,7 +1233,7 @@ async def rotate_key(request: Request):
     )
     await db.commit()
     response = _redirect("/login")
-    clear_session(response)
+    await _end_session(request, response)
     return response
 
 
@@ -1195,7 +1249,7 @@ async def delete_account(request: Request):
     await db.execute("DELETE FROM users WHERE id = ?", (user["id"],))
     await db.commit()
     response = _redirect("/")
-    clear_session(response)
+    await _end_session(request, response)
     return response
 
 

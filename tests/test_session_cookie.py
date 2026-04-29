@@ -42,6 +42,9 @@ def _bootstrap_app(monkeypatch, tmp_path, **env):
     monkeypatch.setenv("DB_PATH", str(db_path))
     monkeypatch.setenv("APP_ENV", env.get("APP_ENV", "development"))
     monkeypatch.setenv("ENCRYPTION_KEY", Fernet.generate_key().decode())
+    # MAK-167: validate_secrets() refuses to boot APP_ENV=production without
+    # a SESSION_SECRET. Provide one for the production-cookie test.
+    monkeypatch.setenv("SESSION_SECRET", "test-session-secret-not-the-dev-default")
     monkeypatch.setenv("APP_BASE_URL", "http://localhost:8000")
     monkeypatch.setenv("RESEND_API_KEY", "")
     for key in ("SESSION_COOKIE_SECURE",):

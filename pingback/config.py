@@ -53,6 +53,45 @@ PADDLE_API_BASE_URL = (
 # Generate with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
 ENCRYPTION_KEY = os.environ.get("ENCRYPTION_KEY", "")
 
+# Separate HMAC secret for signing session-cookie payloads (MAK-167). Must NOT
+# be reused for ENCRYPTION_KEY: a leaked session-signing key reveals nothing
+# about ciphertext, but reusing the encryption-at-rest key for cookies meant
+# any cookie compromise rotated keys for stored data too.
+# Generate with: python -c "import secrets; print(secrets.token_urlsafe(48))"
+SESSION_SECRET = os.environ.get("SESSION_SECRET", "")
+
+# Default + ceiling lifetime for a UI session (MAK-167 capped from 30d → 14d).
+SESSION_LIFETIME_SECONDS = int(os.environ.get("SESSION_LIFETIME_SECONDS", str(60 * 60 * 24 * 14)))
+
+# Known dev-only fallback values that must not appear in production. Add new
+# placeholders here whenever a dev fallback is introduced.
+_DEV_SESSION_SECRETS = frozenset({
+    "pingback-dev-secret-change-me",
+    "",
+})
+
+
+def validate_secrets() -> None:
+    """Raise RuntimeError at boot if the running environment is production but
+    a critical secret is missing or set to a known dev placeholder.
+
+    Called from `pingback.main` lifespan startup so the process refuses to
+    serve traffic with obviously-broken security configuration (MAK-167).
+    """
+    if APP_ENV.strip().lower() != "production":
+        return
+    missing: list[str] = []
+    if not ENCRYPTION_KEY.strip():
+        missing.append("ENCRYPTION_KEY")
+    if SESSION_SECRET.strip() in _DEV_SESSION_SECRETS:
+        missing.append("SESSION_SECRET")
+    if missing:
+        raise RuntimeError(
+            "Refusing to boot with APP_ENV=production: "
+            f"missing or default secret(s): {', '.join(missing)}. "
+            "Set them in /opt/pingback/.env before starting the service."
+        )
+
 # Operator ceiling on retention. Per-plan windows above are bounded by this
 # value; bumped to 365 so Business's 1-year window is not silently truncated.
 RETENTION_DAYS = int(os.environ.get("RETENTION_DAYS", "365"))
