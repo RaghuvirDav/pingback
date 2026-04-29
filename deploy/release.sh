@@ -126,11 +126,22 @@ if [[ -n "$PREV_TARGET" && "$PREV_TARGET" != "$RELEASE_DIR" ]]; then
   echo "$PREV_TARGET" > "$RELEASES_DIR/.previous"
 fi
 
-# Graceful reload. SIGHUP -> gunicorn forks new workers from the new
-# release dir, then drains the old workers. nginx proxy_next_upstream
-# absorbs any in-flight error.
-log "systemctl reload pingback"
-systemctl reload pingback
+# Phase 1 single-process trade-off: use `restart`, not `reload`.
+#
+# A SIGHUP graceful reload would only fork new workers off the existing
+# master, but the master's cwd was resolved through /opt/pingback/current
+# at master-start time and is now frozen to the previous release's inode.
+# The forked worker therefore re-imports `pingback.main` from the old
+# release dir even after we swap the symlink — /healthz never flips.
+#
+# `systemctl restart` re-execs gunicorn from scratch, which re-resolves
+# the symlink and picks up the new release. Cost: ~2-4s during which
+# new connections see 502; nginx `proxy_next_upstream` (twin-entry
+# upstream + 5s tries timeout) catches in-flight requests that complete
+# inside the window. Phase 2 (MAK-180) lifts this with two systemd
+# units on different ports + nginx blue/green.
+log "systemctl restart pingback"
+systemctl restart pingback
 
 # Poll /healthz until it reports the new sha or HEALTH_TIMEOUT elapses.
 deadline=$(( $(date +%s) + HEALTH_TIMEOUT ))

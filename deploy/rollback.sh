@@ -80,8 +80,11 @@ if [[ -n "$CURRENT_TARGET" && "$CURRENT_TARGET" != "$TARGET" ]]; then
   echo "$CURRENT_TARGET" > "$PREV_FILE"
 fi
 
-log "systemctl reload pingback"
-systemctl reload pingback
+# See release.sh for why this is `restart` not `reload`. Phase 1 single-
+# process gunicorn cannot re-resolve its WorkingDirectory symlink on
+# SIGHUP, so we fully re-exec the master to pick up the rolled-back code.
+log "systemctl restart pingback"
+systemctl restart pingback
 
 deadline=$(( $(date +%s) + HEALTH_TIMEOUT ))
 while (( $(date +%s) < deadline )); do
