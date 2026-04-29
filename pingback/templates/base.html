@@ -12,6 +12,7 @@
   {% block head %}{% endblock %}
 </head>
 <body>
+  <a href="#main" class="skip-link">Skip to content</a>
   {% block body %}{% endblock %}
   {% if user and (user.timezone or 'Etc/UTC') == 'Etc/UTC' %}
   <script>

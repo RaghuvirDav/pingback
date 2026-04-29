@@ -1,16 +1,16 @@
 {% import "_icons.html" as ic %}
-<div class="topbar">
+<header class="topbar">
   <button class="menu-btn" data-toggle-sidebar aria-label="Open menu"
           aria-controls="pb-sidebar" aria-expanded="false">{{ ic.i_menu(18) }}</button>
-  <div class="crumbs">
+  <nav class="crumbs" aria-label="Breadcrumb">
     {% for c in crumbs or ['Pingback'] %}
       {% if not loop.first %}<span class="sep">/</span>{% endif %}
       <span class="{{ 'cur' if loop.last else '' }}">{{ c }}</span>
     {% endfor %}
-  </div>
+  </nav>
   <div class="search" role="search" aria-label="Search (preview)">
     {{ ic.i_search(14) }}
     <span>Search monitors, incidents&hellip;</span>
     <span class="kbd">/</span>
   </div>
-</div>
+</header>

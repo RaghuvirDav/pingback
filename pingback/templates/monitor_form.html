@@ -3,12 +3,49 @@
 {% set active = 'monitors' %}
 {% set crumbs = ['Pingback', 'Monitors', ('Edit' if monitor else 'New')] %}
 {% block title %}{{ 'Edit' if monitor else 'Add' }} monitor — Pingback{% endblock %}
+{% block head %}
+<style>
+  /* MAK-164: sentence-case, body-weight labels for the monitor form. */
+  .form-modern .field label {
+    text-transform: none;
+    letter-spacing: 0;
+    font-weight: 400;
+    font-size: 13px;
+    color: var(--fg-1);
+  }
+  .visibility-row { transition: background 120ms, border-color 120ms; }
+  .visibility-row:hover { background: var(--bg-3); border-color: var(--fg-3); }
+  .visibility-check {
+    appearance: none; -webkit-appearance: none;
+    width: 22px; height: 22px;
+    background: var(--bg);
+    border: 1.5px solid var(--line);
+    border-radius: 6px;
+    cursor: pointer;
+    display: inline-grid;
+    place-content: center;
+    transition: background 120ms, border-color 120ms;
+    flex-shrink: 0;
+  }
+  .visibility-check:hover { border-color: var(--accent); }
+  .visibility-check:checked {
+    background: var(--accent);
+    border-color: var(--accent);
+  }
+  .visibility-check:checked::before {
+    content: "";
+    width: 12px; height: 12px;
+    background: var(--bg);
+    clip-path: polygon(14% 44%, 0 60%, 40% 100%, 100% 20%, 84% 6%, 38% 70%);
+  }
+</style>
+{% endblock %}
 {% block body %}
 <div class="app">
   {% include "_sidebar.html" %}
-  <div class="main" role="main">
+  <main class="main" id="main">
     {% include "_topbar.html" %}
-    <div class="page" style="max-width:720px">
+    <div class="page form-modern" style="max-width:720px">
 
       <div style="margin-bottom:24px">
         <a class="btn btn-ghost" href="/dashboard" style="padding:4px 8px;margin-bottom:10px;font-size:12px">← Overview</a>
@@ -70,15 +107,14 @@
             </div>
           </div>
           <div class="field">
-            <label>Visibility</label>
-            <label class="row" style="justify-content:space-between;background:var(--bg-2);padding:12px 14px;border-radius:10px;border:1px solid var(--line);cursor:pointer">
+            <label for="is_public">Visibility</label>
+            <label class="row visibility-row" style="justify-content:space-between;background:var(--bg-2);padding:12px 14px;border-radius:10px;border:1px solid var(--line);cursor:pointer;gap:12px">
               <div>
                 <div style="font-size:14px;font-weight:500">Show on public status page</div>
-                <div class="muted small" style="margin-top:2px">Your status page is at <span class="mono">/status/{{ user.id }}</span>.</div>
+                <div class="muted small" style="margin-top:2px">Visible monitors appear on your shareable uptime page.</div>
               </div>
-              <input type="checkbox" id="is_public" name="is_public" value="1"
-                     {{ 'checked' if ((monitor and monitor.is_public) or is_public) else '' }}
-                     style="width:18px;height:18px;accent-color:var(--accent)">
+              <input type="checkbox" id="is_public" name="is_public" value="1" class="visibility-check"
+                     {{ 'checked' if ((monitor and monitor.is_public) or is_public) else '' }}>
             </label>
           </div>
         </div>
@@ -104,7 +140,7 @@
       {% endif %}
 
     </div>
-  </div>
+  </main>
 </div>
 <script>
   document.querySelectorAll('.seg [data-interval]').forEach(function(btn) {

@@ -3,7 +3,7 @@
 {% import "_icons.html" as ic %}
 {% block title %}Status{% if user_id %} — {{ user_id }}{% endif %}{% endblock %}
 {% block body %}
-<div class="main" role="main">
+<main class="main" id="main">
   <div class="landing-nav">
     <a href="/" class="brand" style="padding:0">{{ brand.brand_logo(24) }}</a>
     <div class="spacer"></div>
@@ -72,5 +72,5 @@
       Powered by <span style="color:var(--fg-1)">Pingback</span>
     </div>
   </div>
-</div>
+</main>
 {% endblock %}

@@ -10,6 +10,7 @@
     </a>
   </div>
 
+  <nav aria-label="Primary">
   <a class="nav-item {% if active == 'dashboard' %}active{% endif %}" href="/dashboard"
      {% if active == 'dashboard' %}aria-current="page"{% endif %}>
     <span class="nav-icon">{{ ic.i_home(16) }}</span><span>Overview</span>
@@ -32,6 +33,7 @@
      {% if active == 'billing' %}aria-current="page"{% endif %}>
     <span class="nav-icon">{{ ic.i_receipt(16) }}</span><span>Billing</span>
   </a>
+  </nav>
 
   {% if (user.plan or 'free') == 'free' %}
   <a class="upgrade-pill" href="/pricing" data-testid="sidebar-upgrade">
@@ -40,16 +42,16 @@
   </a>
   {% endif %}
 
-  <div class="sidebar-foot">
+  <footer class="sidebar-foot">
     <div class="avatar">{{ (user.name or user.email or 'U')[0:2]|upper }}</div>
     <div class="user-meta grow">
       <div class="name" title="{{ user.name or user.email }}">{{ user.name or user.email }}</div>
-      <div class="user-plan">{{ (user.plan or 'free')|upper }}{% if monitor_count is defined %} · {{ monitor_count }} monitors{% endif %}</div>
+      <div class="user-plan">{{ (user.plan or 'free')|upper }}{% if monitor_count is defined %} · {{ monitor_count }} monitor{{ '' if monitor_count == 1 else 's' }}{% endif %}</div>
     </div>
     <form method="post" action="/logout" class="logout-form">
       <button type="submit" class="btn btn-ghost btn-icon logout-btn" title="Log out" aria-label="Log out">{{ ic.i_logout(14) }}</button>
     </form>
-  </div>
+  </footer>
 </aside>
 
 <script>

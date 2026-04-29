@@ -1,5 +1,5 @@
 {% import "_brand.html" as brand %}
-<div class="landing-nav">
+<nav class="landing-nav" aria-label="Primary">
   <a href="/" class="brand" style="padding:0">{{ brand.brand_logo(26) }}</a>
   <div class="spacer"></div>
   <a href="/#features" class="btn btn-ghost">Features</a>
@@ -13,4 +13,4 @@
     <a href="/login" class="btn btn-ghost">Sign in</a>
     <a href="/signup" class="btn btn-primary">Start free</a>
   {% endif %}
-</div>
+</nav>
