@@ -69,6 +69,7 @@
       {% endif %}
 
       <form method="post">
+        {{ csrf_input(request) }}
         <div class="card">
           <div class="field">
             <label for="name">Friendly name</label>
@@ -134,6 +135,7 @@
         <p>Delete this monitor and all its check history. This cannot be undone.</p>
         <form method="post" action="/dashboard/monitors/{{ monitor.id }}/delete"
               onsubmit="return confirm('Delete this monitor and all its check history? This cannot be undone.')">
+          {{ csrf_input(request) }}
           <button type="submit" class="btn btn-danger">{{ ic.i_trash(14) }} Delete monitor</button>
         </form>
       </div>

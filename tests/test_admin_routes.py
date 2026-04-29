@@ -40,16 +40,22 @@ def _import_app_with_admins(monkeypatch, tmp_path, admin_emails: str):
 
 @pytest.fixture
 def admin_client(monkeypatch, tmp_path):
+    from tests.conftest import install_csrf_autoinject
+
     app_mod = _import_app_with_admins(monkeypatch, tmp_path, ADMIN_EMAIL)
     with TestClient(app_mod.app) as c:
+        install_csrf_autoinject(c)
         yield c
 
 
 @pytest.fixture
 def closed_client(monkeypatch, tmp_path):
     """ADMIN_EMAILS empty — admin route should be fully closed (404)."""
+    from tests.conftest import install_csrf_autoinject
+
     app_mod = _import_app_with_admins(monkeypatch, tmp_path, "")
     with TestClient(app_mod.app) as c:
+        install_csrf_autoinject(c)
         yield c
 
 
@@ -90,7 +96,8 @@ def test_admin_allowlist_is_case_insensitive(monkeypatch, tmp_path):
         monkeypatch, tmp_path, "Ops@Example.COM,other@example.com"
     )
     with TestClient(app_mod.app) as c:
-        from tests.conftest import signup_and_verify
+        from tests.conftest import install_csrf_autoinject, signup_and_verify
+        install_csrf_autoinject(c)
         # User signs up with lowercase; allowlist is uppercase. Should still match.
         signup_and_verify(c, "ops@example.com")
         r = c.get("/admin")

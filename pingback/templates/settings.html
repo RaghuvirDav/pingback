@@ -46,6 +46,7 @@
         <h3 class="section-title">Verify your email</h3>
         <p class="section-sub">Your email ({{ user.email }}) isn't verified yet. Some actions are limited until you confirm it.</p>
         <form method="post" action="/dashboard/settings/resend-verification">
+          {{ csrf_input(request) }}
           <button type="submit" class="btn">Resend verification email</button>
         </form>
       </div>
@@ -57,6 +58,7 @@
         <h3 class="section-title">Password</h3>
         <p class="section-sub">Change the password you use to sign in.</p>
         <form method="post" action="/dashboard/settings/change-password">
+          {{ csrf_input(request) }}
           <div class="field">
             <label for="current_password">Current password</label>
             <input class="input" type="password" id="current_password" name="current_password" required
@@ -79,6 +81,7 @@
         <p class="section-sub">Rotate your API key if it may have been leaked. Rotating logs you out.</p>
         <form method="post" action="/dashboard/settings/rotate-key"
               onsubmit="return confirm('This will invalidate your current API key immediately. Continue?')">
+          {{ csrf_input(request) }}
           <button type="submit" class="btn btn-warn">Rotate API key</button>
         </form>
       </div>
@@ -117,6 +120,7 @@
         <p>Permanently delete your account and all monitors/check history. This cannot be undone.</p>
         <form method="post" action="/dashboard/settings/delete-account"
               onsubmit="return confirm('Permanently delete your account, all monitors, and all check history?') && prompt('Type your email to confirm:') === '{{ user.email }}'">
+          {{ csrf_input(request) }}
           <button type="submit" class="btn btn-danger">{{ ic.i_trash(14) }} Delete account</button>
         </form>
       </div>

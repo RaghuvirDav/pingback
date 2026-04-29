@@ -49,6 +49,7 @@
       <div class="user-plan">{{ (user.plan or 'free')|upper }}{% if monitor_count is defined %} · {{ monitor_count }} monitor{{ '' if monitor_count == 1 else 's' }}{% endif %}</div>
     </div>
     <form method="post" action="/logout" class="logout-form">
+      {{ csrf_input(request) }}
       <button type="submit" class="btn btn-ghost btn-icon logout-btn" title="Log out" aria-label="Log out">{{ ic.i_logout(14) }}</button>
     </form>
   </footer>

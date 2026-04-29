@@ -15,6 +15,7 @@
       <div class="flash" style="margin-top:16px">
         The link expires in 24 hours. Didn't get it?
         <form method="post" action="/verify/resend" style="display:inline;margin-left:4px">
+          {{ csrf_input(request) }}
           <input type="hidden" name="email" value="{{ email }}">
           <button type="submit" class="btn-link" style="background:none;border:0;padding:0;color:var(--accent);cursor:pointer;text-decoration:underline;font:inherit">Resend</button>
         </form>

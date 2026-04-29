@@ -7,6 +7,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
+from pingback.csrf import register_csrf_globals
 from pingback.db.connection import get_database
 from pingback.db.monitors import (
     find_monitors_with_last_check,
@@ -16,6 +17,7 @@ from pingback.db.monitors import (
 
 _TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
 templates = Jinja2Templates(directory=str(_TEMPLATES_DIR))
+register_csrf_globals(templates)
 
 router = APIRouter()
 

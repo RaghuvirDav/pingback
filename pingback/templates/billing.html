@@ -26,6 +26,7 @@
           Update your card to keep Pro — Paddle will retry automatically.
         </div>
         <form method="post" action="/dashboard/billing/portal" style="margin:0">
+          {{ csrf_input(request) }}
           <button class="btn btn-primary" type="submit">Update payment method</button>
         </form>
       </div>
@@ -86,6 +87,7 @@
           </ul>
           {% if user.plan == 'pro' %}
           <form method="post" action="/dashboard/billing/portal" style="margin:0">
+            {{ csrf_input(request) }}
             <button class="btn btn-primary btn-full" style="margin-top:16px" type="submit">Manage subscription</button>
           </form>
           {% else %}
@@ -119,6 +121,7 @@
         <h3 class="section-title">Notifications</h3>
         <p class="section-sub">Daily digest at 08:00 in your timezone.</p>
         <form method="post" action="/dashboard/settings/notifications">
+          {{ csrf_input(request) }}
           <input type="hidden" name="redirect_to" value="/dashboard/billing">
           <label class="row" style="justify-content:space-between;background:var(--bg-2);padding:12px 14px;border-radius:10px;border:1px solid var(--line);margin-bottom:14px;cursor:pointer">
             <div>
@@ -170,9 +173,11 @@
         </div>
         <div style="margin-top:18px;display:flex;gap:10px;flex-wrap:wrap">
           <form method="post" action="/dashboard/billing/portal" style="margin:0">
+            {{ csrf_input(request) }}
             <button class="btn btn-primary" type="submit">Manage billing</button>
           </form>
           <form method="post" action="/dashboard/billing/portal" style="margin:0">
+            {{ csrf_input(request) }}
             <button class="btn btn-ghost" type="submit">Downgrade or cancel</button>
           </form>
         </div>

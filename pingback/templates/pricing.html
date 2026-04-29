@@ -80,6 +80,7 @@
       {% if user %}
         {% if user.plan == 'pro' %}
         <form method="post" action="/dashboard/billing/portal" style="margin:18px 0 0">
+          {{ csrf_input(request) }}
           <button class="btn btn-primary btn-full" type="submit">Manage subscription</button>
         </form>
         {% else %}
@@ -110,6 +111,7 @@
       </ul>
       {% if user and user.plan == 'business' %}
       <form method="post" action="/dashboard/billing/portal" style="margin:18px 0 0">
+        {{ csrf_input(request) }}
         <button class="btn btn-primary btn-full" type="submit">Manage subscription</button>
       </form>
       {% else %}

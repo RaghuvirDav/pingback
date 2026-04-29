@@ -33,6 +33,7 @@ from pingback.auth import (
     verify_password,
 )
 from pingback.config import APP_BASE_URL
+from pingback.csrf import csrf_protect, register_csrf_globals
 from pingback.db.connection import get_database
 from pingback.db.monitors import (
     count_user_monitors,
@@ -61,6 +62,7 @@ from pingback.session import clear_session, get_session_key, set_session
 
 _TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "templates"
 templates = Jinja2Templates(directory=str(_TEMPLATES_DIR))
+register_csrf_globals(templates)
 
 logger = logging.getLogger("pingback.dashboard")
 
@@ -261,7 +263,7 @@ async def login_page(request: Request):
 @router.post(
     "/login",
     response_class=HTMLResponse,
-    dependencies=[Depends(require_login_rate_limit)],
+    dependencies=[Depends(csrf_protect), Depends(require_login_rate_limit)],
 )
 async def login_submit(
     request: Request,
@@ -346,7 +348,7 @@ async def signup_page(request: Request):
 @router.post(
     "/signup",
     response_class=HTMLResponse,
-    dependencies=[Depends(require_signup_rate_limit)],
+    dependencies=[Depends(csrf_protect), Depends(require_signup_rate_limit)],
 )
 async def signup_submit(
     request: Request,
@@ -495,7 +497,11 @@ async def verify_email(request: Request):
     return response
 
 
-@router.post("/verify/resend", response_class=HTMLResponse)
+@router.post(
+    "/verify/resend",
+    response_class=HTMLResponse,
+    dependencies=[Depends(csrf_protect)],
+)
 async def resend_verification(request: Request, email: str = Form(...)):
     """Send a new verification link by email. Never leaks whether the account exists."""
     user = await lookup_user_by_email(email)
@@ -522,7 +528,7 @@ async def forgot_password_page(request: Request):
 @router.post(
     "/forgot-password",
     response_class=HTMLResponse,
-    dependencies=[Depends(require_forgot_rate_limit)],
+    dependencies=[Depends(csrf_protect), Depends(require_forgot_rate_limit)],
 )
 async def forgot_password_submit(request: Request, email: str = Form(...)):
     user = await lookup_user_by_email(email)
@@ -574,7 +580,7 @@ async def reset_password_page(request: Request):
 @router.post(
     "/reset-password",
     response_class=HTMLResponse,
-    dependencies=[Depends(require_reset_rate_limit)],
+    dependencies=[Depends(csrf_protect), Depends(require_reset_rate_limit)],
 )
 async def reset_password_submit(
     request: Request,
@@ -625,7 +631,7 @@ async def reset_password_submit(
     return response
 
 
-@router.post("/logout")
+@router.post("/logout", dependencies=[Depends(csrf_protect)])
 async def logout():
     response = _redirect("/")
     clear_session(response)
@@ -784,7 +790,11 @@ async def new_monitor_page(request: Request):
     })
 
 
-@router.post("/dashboard/monitors/new", response_class=HTMLResponse)
+@router.post(
+    "/dashboard/monitors/new",
+    response_class=HTMLResponse,
+    dependencies=[Depends(csrf_protect)],
+)
 async def new_monitor_submit(
     request: Request,
     name: str = Form(...),
@@ -849,7 +859,11 @@ async def edit_monitor_page(request: Request, monitor_id: str):
     })
 
 
-@router.post("/dashboard/monitors/{monitor_id}/edit", response_class=HTMLResponse)
+@router.post(
+    "/dashboard/monitors/{monitor_id}/edit",
+    response_class=HTMLResponse,
+    dependencies=[Depends(csrf_protect)],
+)
 async def edit_monitor_submit(
     request: Request,
     monitor_id: str,
@@ -890,7 +904,10 @@ async def edit_monitor_submit(
     return _redirect(f"/dashboard/monitors/{monitor_id}")
 
 
-@router.post("/dashboard/monitors/{monitor_id}/delete")
+@router.post(
+    "/dashboard/monitors/{monitor_id}/delete",
+    dependencies=[Depends(csrf_protect)],
+)
 async def delete_monitor_route(request: Request, monitor_id: str):
     user = await _get_ui_user(request)
     if user is None:
@@ -977,7 +994,10 @@ async def settings_page(request: Request):
     })
 
 
-@router.post("/dashboard/settings/notifications")
+@router.post(
+    "/dashboard/settings/notifications",
+    dependencies=[Depends(csrf_protect)],
+)
 async def update_notifications(
     request: Request,
     digest_enabled: int = Form(0),
@@ -1050,7 +1070,10 @@ async def update_my_timezone(request: Request):
     return {"updated": True, "timezone": tz_name}
 
 
-@router.post("/dashboard/settings/change-password")
+@router.post(
+    "/dashboard/settings/change-password",
+    dependencies=[Depends(csrf_protect)],
+)
 async def change_password(
     request: Request,
     current_password: str = Form(...),
@@ -1076,7 +1099,10 @@ async def change_password(
     return _redirect("/dashboard/settings?success=Password+updated")
 
 
-@router.post("/dashboard/settings/resend-verification")
+@router.post(
+    "/dashboard/settings/resend-verification",
+    dependencies=[Depends(csrf_protect)],
+)
 async def resend_verification_from_settings(request: Request):
     user = await _get_ui_user(request)
     if user is None:
@@ -1093,7 +1119,10 @@ async def resend_verification_from_settings(request: Request):
     return _redirect("/dashboard/settings?success=Verification+email+sent")
 
 
-@router.post("/dashboard/settings/rotate-key")
+@router.post(
+    "/dashboard/settings/rotate-key",
+    dependencies=[Depends(csrf_protect)],
+)
 async def rotate_key(request: Request):
     user = await _get_ui_user(request)
     if user is None:
@@ -1111,7 +1140,10 @@ async def rotate_key(request: Request):
     return response
 
 
-@router.post("/dashboard/settings/delete-account")
+@router.post(
+    "/dashboard/settings/delete-account",
+    dependencies=[Depends(csrf_protect)],
+)
 async def delete_account(request: Request):
     user = await _get_ui_user(request)
     if user is None:
