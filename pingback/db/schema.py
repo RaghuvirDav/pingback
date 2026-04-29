@@ -216,6 +216,11 @@ MIGRATIONS = [
 async def initialize_database(db: aiosqlite.Connection) -> None:
     await db.execute("PRAGMA journal_mode = WAL")
     await db.execute("PRAGMA foreign_keys = ON")
+    # MAK-169: SQLite's default busy timeout is 0 — under WAL contention
+    # (e.g. a backup checkpoint racing a write) callers get an immediate
+    # SQLITE_BUSY. 5s lets transient lock contention resolve before the
+    # error reaches the request path.
+    await db.execute("PRAGMA busy_timeout = 5000")
     await db.executescript(SCHEMA_SQL)
     await db.executescript(DIGEST_PREFS_SQL)
     for migration in MIGRATIONS:

@@ -1,0 +1,18 @@
+{
+  "Rules": [
+    {
+      "ID": "pingback-backups-tiering",
+      "Status": "Enabled",
+      "Filter": { "Prefix": "backups/" },
+      "Transitions": [
+        { "Days": 30, "StorageClass": "GLACIER_IR" }
+      ],
+      "Expiration": { "Days": 365 },
+      "NoncurrentVersionTransitions": [
+        { "NoncurrentDays": 30, "StorageClass": "GLACIER_IR" }
+      ],
+      "NoncurrentVersionExpiration": { "NoncurrentDays": 90 },
+      "AbortIncompleteMultipartUpload": { "DaysAfterInitiation": 7 }
+    }
+  ]
+}

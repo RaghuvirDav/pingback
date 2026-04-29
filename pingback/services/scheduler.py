@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import logging
 from datetime import datetime, timezone
 
@@ -39,6 +40,23 @@ _last_digest_tick_at: float = 0
 _last_rollup_tick_at: float = 0
 
 
+def _phase_offset_seconds(monitor_id: str, interval_seconds: int) -> float:
+    """Stable per-monitor jitter in [0, interval*0.1) seconds (MAK-169).
+
+    Without an offset, monitors created in the same bulk import (or seeded
+    with the same `last_check_at` after a restart) all become "due" on the
+    same tick and dispatch in one fan-out, spiking egress and the upstream
+    target. The offset is derived deterministically from `monitor.id` so it
+    survives process restarts and keeps each monitor's effective phase stable
+    across ticks. 10% of the interval is small enough that the effective
+    cadence stays within [interval, interval*1.1] yet large enough to
+    deconcentrate same-interval cohorts.
+    """
+    digest = hashlib.sha1(monitor_id.encode("utf-8")).digest()
+    fraction = int.from_bytes(digest[:4], "big") / 0xFFFFFFFF
+    return fraction * (interval_seconds * 0.1)
+
+
 async def _run_check(db, monitor) -> None:
     try:
         outcome = await check_url(monitor.url)
@@ -68,7 +86,15 @@ async def _tick() -> None:
             if last_check
             else 0
         )
-        if now >= last_check_time + monitor.interval_seconds:
+        # First-ever check (last_check_time == 0) fires immediately so a
+        # newly-created monitor isn't gated by jitter; subsequent ticks pick
+        # up the per-monitor phase offset.
+        jitter = (
+            _phase_offset_seconds(monitor.id, monitor.interval_seconds)
+            if last_check_time
+            else 0.0
+        )
+        if now >= last_check_time + monitor.interval_seconds + jitter:
             due.append(monitor)
 
     if due:

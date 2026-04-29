@@ -29,6 +29,12 @@ server {
     add_header X-Content-Type-Options nosniff always;
     add_header X-Frame-Options DENY always;
     add_header X-XSS-Protection "1; mode=block" always;
+    # MAK-169: CSP in report-only first. Run for ~1 week, watch the browser
+    # console / report-uri logs, then promote to enforcing once we've squared
+    # off the inline-style and image-host allowlists. 'unsafe-inline' for
+    # styles is intentional today (Tailwind utility classes inlined into the
+    # head); we'll tighten with a nonce once the asset pipeline is settled.
+    add_header Content-Security-Policy-Report-Only "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; font-src 'self' data:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'" always;
 
     # Proxy to Pingback
     location / {
