@@ -6,9 +6,37 @@ After=network.target
 Type=simple
 User=pingback
 Group=pingback
-WorkingDirectory=/opt/pingback
+
+# /opt/pingback/current is a symlink to the active release dir
+# (/opt/pingback/releases/<git-sha>/). deploy/release.sh swaps it atomically
+# and then triggers ExecReload below.
+WorkingDirectory=/opt/pingback/current
 EnvironmentFile=/opt/pingback/.env
-ExecStart=/opt/pingback/venv/bin/uvicorn pingback.main:app --host 127.0.0.1 --port 8000
+
+# gunicorn master + uvicorn workers gives us graceful SIGHUP reload
+# (master forks new workers, drains the old) which uvicorn alone does not
+# support. --max-requests + jitter recycles workers so memory accumulated
+# across deploys doesn't pile up between restarts.
+ExecStart=/opt/pingback/current/venv/bin/gunicorn pingback.main:app \
+    --workers 1 \
+    --worker-class uvicorn.workers.UvicornWorker \
+    --bind 127.0.0.1:8000 \
+    --max-requests 1000 \
+    --max-requests-jitter 100 \
+    --graceful-timeout 30 \
+    --timeout 60 \
+    --access-logfile - \
+    --error-logfile -
+
+# `systemctl reload pingback` -> SIGHUP -> gunicorn graceful worker reload.
+# Old workers finish in-flight requests, new workers pick up the new release
+# dir via the WorkingDirectory symlink. Combined with nginx
+# proxy_next_upstream, in-flight requests never see a 502.
+ExecReload=/bin/kill -HUP $MAINPID
+KillMode=mixed
+KillSignal=SIGTERM
+TimeoutStopSec=30
+
 Restart=always
 RestartSec=5
 StandardOutput=journal

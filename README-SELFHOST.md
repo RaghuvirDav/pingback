@@ -119,6 +119,85 @@ Full details in [`docs/OPERATIONS.md`](docs/OPERATIONS.md).
 - Sign up for a local account, create a monitor pointing at `https://example.com`, and wait one check interval (default 5 min). The monitor should flip to green.
 - `sudo journalctl -u pingback -n 50 --no-pager` — tail app logs.
 
+## 7a. Deploys and rollback (zero-downtime)
+
+Pingback uses a versioned-release layout so production updates do not drop in-flight requests. Each deploy lands in its own directory under `/opt/pingback/releases/<git-sha>/` and `/opt/pingback/current` is an atomic symlink to the active release. `systemctl reload pingback` (SIGHUP) triggers a graceful gunicorn worker reload that drains existing requests before the old workers exit; nginx `proxy_next_upstream` retries any transient 502/504 from a dying worker against a fresh one.
+
+**Layout**
+
+```
+/opt/pingback/
+├── current -> releases/<sha>/        # atomic symlink, swapped on deploy
+├── releases/
+│   ├── <sha-N>/                      # current release (code + venv)
+│   ├── <sha-N-1>/                    # previous release (rollback target)
+│   └── ...
+├── .env                              # shared, root:pingback 640
+└── data/pingback.db                  # shared, lives outside release dirs
+```
+
+**Deploy a new build**
+
+From your laptop, build a release tarball and copy it to the box:
+
+```bash
+SHA=$(git rev-parse --short HEAD)
+git archive --format=tar.gz -o /tmp/pingback-$SHA.tar.gz HEAD
+scp -i .ssh/pingback-ec2.pem /tmp/pingback-$SHA.tar.gz ec2-user@<host>:/tmp/
+ssh -i .ssh/pingback-ec2.pem ec2-user@<host> \
+  "sudo /opt/pingback/current/deploy/release.sh /tmp/pingback-$SHA.tar.gz $SHA"
+```
+
+`release.sh` unpacks the tarball into `/opt/pingback/releases/<sha>/`, builds a per-release venv (seeded from the previous release with hardlinks so unchanged wheels are not re-downloaded), runs an in-process import preflight, swaps the `current` symlink atomically, and reloads systemd. It then polls `/healthz` for up to 30 seconds and verifies the running version flipped to the new sha. **If the health check fails, the symlink is automatically reverted to the previous release.**
+
+Health check contract:
+
+```bash
+curl -s http://127.0.0.1:8000/healthz
+# {"ok":true,"version":"<sha>"}
+curl -sI https://<host>/ | grep -i x-pingback-version
+# X-Pingback-Version: <sha>
+```
+
+**Roll back**
+
+One command, completes in well under 5 seconds:
+
+```bash
+ssh -i .ssh/pingback-ec2.pem ec2-user@<host> "sudo /opt/pingback/current/deploy/rollback.sh"
+```
+
+By default the script reads `/opt/pingback/releases/.previous` (written by `release.sh` on every deploy) and points `current` at that release. To roll to a specific older release, pass its sha: `sudo deploy/rollback.sh <sha>`.
+
+**Acceptance test (zero 502s under load)**
+
+From a workstation with `hey` installed, drive 10 RPS at `/healthz` for 60 seconds while a deploy runs in another shell. Both the deploy window and a subsequent rollback should report zero failed requests:
+
+```bash
+hey -z 60s -c 10 -q 1 https://<host>/healthz
+```
+
+**Migrating an existing host from the legacy layout**
+
+If `/opt/pingback` is the pre-MAK-179 flat layout (code at `/opt/pingback/pingback/`, venv at `/opt/pingback/venv/`), do the cut-over once:
+
+```bash
+SHA=$(git rev-parse --short HEAD)
+sudo mkdir -p /opt/pingback/releases/$SHA
+sudo cp -a /opt/pingback/{pingback,deploy,requirements.txt,scripts} /opt/pingback/releases/$SHA/
+sudo cp -a /opt/pingback/venv /opt/pingback/releases/$SHA/venv
+sudo ln -s /opt/pingback/.env /opt/pingback/releases/$SHA/.env
+sudo ln -s /opt/pingback/data /opt/pingback/releases/$SHA/data
+echo "$SHA" | sudo tee /opt/pingback/releases/$SHA/RELEASE_SHA
+sudo chown -R pingback:pingback /opt/pingback/releases/$SHA
+sudo ln -sfn /opt/pingback/releases/$SHA /opt/pingback/current
+sudo cp /opt/pingback/current/deploy/pingback.service /etc/systemd/system/pingback.service
+sudo systemctl daemon-reload
+sudo systemctl restart pingback
+```
+
+After the first migration, every subsequent deploy is one `release.sh` invocation.
+
 ## 8. Backups
 
 `setup-ec2.sh` installs an hourly SQLite backup cron for the `pingback` user (`deploy/backup-db.sh`). Backups land in `/opt/pingback/data/backups/`. If you want offsite copies, add an `aws s3 sync` step in that script or attach an S3 bucket via IAM role.

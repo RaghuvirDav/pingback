@@ -19,11 +19,12 @@ from pingback.logging_config import (
     status_var,
     user_id_var,
 )
+from pingback.version import VERSION
 
 _access_log = logging.getLogger("pingback.access")
 
 # Routes that don't need audit logging (health checks, static assets)
-_SKIP_PATHS = {"/health", "/docs", "/openapi.json", "/redoc"}
+_SKIP_PATHS = {"/health", "/healthz", "/docs", "/openapi.json", "/redoc"}
 
 # Map HTTP methods to action verbs
 _METHOD_ACTIONS = {
@@ -123,6 +124,7 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
             response = await call_next(request)
             status_code = response.status_code
             response.headers["X-Request-Id"] = request_id
+            response.headers["X-Pingback-Version"] = VERSION
             return response
         finally:
             duration_ms = round((time.perf_counter() - start) * 1000, 2)

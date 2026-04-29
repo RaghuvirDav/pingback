@@ -1,4 +1,16 @@
 # Template rendered by deploy/enable-https.sh: __DOMAIN__ is replaced with $DOMAIN.
+
+# MAK-179: same physical server listed twice so proxy_next_upstream actually
+# fires (nginx disables it for single-entry upstreams). Lets us retry one
+# more time on error/timeout/502/504 during a graceful gunicorn reload.
+# max_fails=0 keeps the upstream eligible for retry instead of marking it
+# down after one transient failure.
+upstream pingback_app {
+    server 127.0.0.1:8000 max_fails=0;
+    server 127.0.0.1:8000 max_fails=0 backup;
+    keepalive 32;
+}
+
 server {
     listen 80;
     server_name __DOMAIN__ www.__DOMAIN__;
@@ -38,12 +50,22 @@ server {
 
     # Proxy to Pingback
     location / {
-        proxy_pass http://127.0.0.1:8000;
+        proxy_pass http://pingback_app;
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_read_timeout 60s;
         proxy_connect_timeout 10s;
+
+        # MAK-179: retry once on transient upstream errors so an in-flight
+        # request that lands on a draining worker doesn't surface as 502.
+        # Default scope is GET/HEAD only — POSTs are NOT retried to avoid
+        # accidental double-submits (billing webhooks, form posts).
+        proxy_next_upstream error timeout http_502 http_504;
+        proxy_next_upstream_tries 2;
+        proxy_next_upstream_timeout 5s;
     }
 }

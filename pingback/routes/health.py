@@ -1,4 +1,8 @@
 from fastapi import APIRouter
+from fastapi.responses import JSONResponse
+
+from pingback.db.connection import get_database
+from pingback.version import VERSION
 
 router = APIRouter()
 
@@ -6,6 +10,27 @@ router = APIRouter()
 @router.get("/health")
 async def health_check():
     return {"status": "ok", "service": "pingback", "version": "0.1.0"}
+
+
+@router.get("/healthz")
+async def healthz():
+    """Liveness/readiness probe used by deploy scripts and uptime monitors.
+
+    Hits the DB with a cheap ``SELECT 1`` so a wedged sqlite handle fails
+    the probe instead of falsely reporting healthy. Returns the running
+    build's git sha so we can confirm a deploy actually swapped the symlink.
+    """
+    try:
+        db = await get_database()
+        async with db.execute("SELECT 1") as cur:
+            row = await cur.fetchone()
+        ok = row is not None and row[0] == 1
+    except Exception:
+        return JSONResponse(
+            {"ok": False, "version": VERSION, "db": "unreachable"},
+            status_code=503,
+        )
+    return {"ok": ok, "version": VERSION}
 
 
 @router.get("/api/privacy-policy")
